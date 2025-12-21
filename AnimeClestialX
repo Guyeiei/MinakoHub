@@ -1,0 +1,440 @@
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+local Window = Fluent:CreateWindow({
+    Title = "Fluent Cleaned Version",
+    SubTitle = "by Gemini",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+local Tabs = {
+    Player = Window:AddTab({ Title = "Player", Icon = "flame" }),
+    AutoFarm = Window:AddTab({ Title = "Auto Farm", Icon = "activity" }),
+    Hatch = Window:AddTab({ Title = "Hatch", Icon = "egg" }),
+    Rolls = Window:AddTab({ Title = "Rolls", Icon = "dices" }),
+    GameModes = Window:AddTab({ Title = "GameModes", Icon = "gamepad" }),
+    Teleport = Window:AddTab({ Title = "Teleport", Icon = "plane" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
+
+local farming = false
+local collecting = false
+local fastClicking = false
+local antiAfk = false
+local hatching = false
+local teleporting = false
+local autoRewards = false
+local autoRejoin = false
+local autoRedeemCodes = false
+local hatchDelay = 0.01
+local clickDelay = 0.05
+local autoRolling = false
+local rollAmount = 1
+local selectedHatchTarget = nil
+
+local LocalPlayer = game:GetService("Players").LocalPlayer
+local PlayerChar = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+local HatchRemote = game:GetService("ReplicatedStorage"):WaitForChild("GameRemotes"):WaitForChild("\208\131\210\144\208\145\208\169\208\131\208\131\208\150\208\131")
+
+local ClickEventRemote = {}
+local EggParent = workspace._Main._Eggs
+local HatchTargets = {}
+local HatchOptions = {
+    "Single", "Three", "Five", "Ten", "Twenty", "Fifty"
+}
+local selectedHatchTarget = nil
+local selectedHatchOption = HatchOptions[1]
+
+local TeleportMaps = {
+    "Map1", "Map2", "Map3", "Map4", "Map5", "Map6", "Map7", "Map8", "Map9"
+}
+local selectedTeleportMap = TeleportMaps[1]
+
+local promotionalCodes = {
+    "immortalboost", "releasehype", "eelshopp", "console", "hunter", "sideissues",
+    "real_yma", "release", "squidboost", "update", "clover", "shadow",
+    "easter", "arise", "update1p1", "1klikes", "2klikes", "powerup"
+}
+
+function getAvailableMaps()
+    local mapNames = {}
+    table.insert(mapNames, "Map3")
+    return mapNames
+end
+
+local function getAvailableHatchTargets()
+    local hatchTargets = {}
+    if EggParent then
+        for _, egg in ipairs(EggParent:GetChildren()) do
+            table.insert(hatchTargets, egg.Name)
+        end
+    end
+    table.sort(hatchTargets, function(a, b)
+        local numA = tonumber(a:match("ergg_scene(%d+)")) or 0
+        local numB = tonumber(b:match("ergg_scene(%d+)")) or 0
+        return numA < numB
+    end)
+    if #hatchTargets == 0 then
+        return {"DefaultHatch"}
+    end
+    return hatchTargets
+end
+
+local function getHatchAmount(option)
+    local amounts = {
+        ["Single"] = 1,
+        ["Three"] = 3,
+        ["Five"] = 5,
+        ["Ten"] = 10,
+        ["Twenty"] = 20,
+        ["Fifty"] = 50
+    }
+    return amounts[option] or 1
+end
+
+-- ฟังก์ชันทั้งหมดจะถูกทำให้ว่างเปล่า
+function StartAutoFarm()
+    --
+end
+function StopAutoFarm()
+    --
+end
+function StartFastClick()
+    if fastClicking then return end
+    fastClicking = true
+    task.spawn(function()
+        while fastClicking do
+            if PlayerAttackRemote then
+                pcall(function()
+                    PlayerAttackRemote:FireServer()
+                end)
+            end
+            if ClickEventRemote then
+                local args = {0, 1}
+                pcall(function()
+                    ClickEventRemote:FireServer(unpack(args))
+                end)
+            end
+            task.wait(clickDelay)
+        end
+    end)
+end
+
+function StopFastClick()
+    fastClicking = false
+end
+
+function StartAutoCollect()
+    --
+end
+function StopAutoCollect()
+    --
+end
+function StartAntiAFK()
+    --
+end
+function StopAntiAFK()
+    --
+end
+function StartAutoHatch()
+    if hatching then return end
+    hatching = true
+    task.spawn(function()
+        while hatching do
+            -- กุญแจ Binary ที่คุณได้มา
+            local binaryKey = "01010010 01100101 01110000 01101100 01101001 01100011 01100001 01110100 01100101 01100100 01010011 01110100 01101111 01110010 01100001 01100111 01100101 00101110 01000110 01110010 01100001 01101101 01100101 01110111 01101111 01110010 01101011 00101110 01001100 01101001 01100010 01110010 01100001 01110010 01111001 00101110 01000011 01101111 01101110 01101110 01100101 01100011 01110100 01101001 01101111 01101110 00101110 01110100 01101000 01110010 01100101 01100001 01100100 01011111 01110011 01100101 01100011 01110101 01110010 01101001 01110100 01111001 00111010 00110001 00001010 01010010 01100101 01110000 01101100 01101001 01100011 01100001 01110100 01100101 01100100 01010011 01110100 01101111 01110010 01100001 01100111 01100101 00101110 01000110 01110010 01100001 01101101 01100101 01110111 01101111 01110010 01101011 00101110 01001100 01101001 01100010 01110010 01100001 01110010 01111001 00101110 01000011 01101111 01101110 01101110 01100101 01100011 01110100 01101001 01101111 01101110 00111010 00110001 00110111 00110010 00100000 01100110 01110101 01101110 01100011 01110100 01101001 01101111 01101110 00100000 01110011 01100101 01101110 01100100 00001010 01010010 01100101 01110000 01101100 01101001 01100011 01100001 01110100 01100101 01100100 01010011 01110100 01101111 01110010 01100001 01100111 01100101 00101110 01000110 01110010 01100001 01101101 01100101 01110111 01101111 01110010 01101011 00101110 01001100 01101001 01100010 01110010 01100001 01110010 01111001 00101110 01000011 01101100 01101001 01100101 01101110 01110100 00101110 01000101 01100111 01100111 01010011 01100101 01110111 01110100 01110101 01110000 00111010 00110001 00110010 00110111 00100000 01100110 01110101 01101110 01100011 01110100 01101001 01101111 01101110 00100000 01001111 01110000 01100101 01101110 01000101 01100111 01100111 00001010 01010010 01100101 01110000 01101100 01101001 01100011 01100001 01110100 01100101 01100100 01010011 01110100 01101111 01110010 01100001 01100111 01100101 00101110 01000110 01110010 01100001 01101101 01100101 01110111 01101111 01110010 01101011 00101110 01001100 01101001 01100010 01110010 01100001 01110010 01111001 00101110 01000011 01101100 01101001 01100101 01101110 01110100 00101110 01000101 01100111 01100111 01010011 01100101 01110111 01110101 01110000 00111010 00110100 00110110 00111001 00001010"
+            
+            local args = {
+                binaryKey,
+                "Systems",
+                "Eggs",
+                "Open",
+                selectedHatchTarget or "Namek", -- ใช้ชื่อแมพจาก Dropdown
+                selectedHatchOption == "Multi" and "Multi" or "Single" -- เช็คว่าเป็น Multi หรือเปล่า
+            }
+            
+            pcall(function()
+                HatchRemote:FireServer(unpack(args))
+            end)
+            
+            task.wait(hatchDelay) -- อย่าปรับเร็วเกิน เดี๋ยวโดนเตะ
+        end
+    end)
+end
+
+function StopAutoHatch()
+    hatching = false
+end
+
+function StartAutoRoll()
+    --
+end
+
+function StopAutoRoll()
+    --
+end
+
+function StartTeleport()
+    --
+end
+function StopTeleport()
+    --
+end
+function StartAutoRewards()
+    --
+end
+function StopAutoRewards()
+    --
+end
+function StartAutoRedeemCodes()
+    --
+end
+function StopAutoRedeemCodes()
+    --
+end
+function StartAutoRejoin()
+    --
+end
+function StopAutoRejoin()
+    --
+end
+
+-- GUI Toggles and Sliders
+if Tabs and Tabs.Player then
+    Tabs.Player:AddToggle("AutoFastClickToggle", {
+        Title = "Auto Click",
+        Description = "Adjusts speed of Auto Fast Click. Lower = Faster.",
+        Default = false,
+        Callback = function(Value)
+            if Value then StartFastClick() else StopFastClick() end
+        end
+    })
+    Tabs.Player:AddSlider("ClickDelaySlider", {
+        Title = "Click Delay (Seconds)",
+        Description = "Adjusts speed of Auto Fast Click. Lower = Faster.",
+        Default = 0.05,
+        Min = 0.01,
+        Max = 0.5,
+        Rounding = 2,
+        Callback = function(Value)
+            clickDelay = Value
+            if fastClicking then StopFastClick(); StartFastClick() end
+        end
+    })
+else
+    warn("Fluent GUI Error: Could not find 'Player' tab.")
+end
+
+if Tabs and Tabs.AutoFarm then
+    Tabs.AutoFarm:AddDropdown("EnemySelector", {
+        Title = "Select Mobs",
+        Description = "Choose one or more mobs to attack.",
+        Values = {},
+        Default = {},
+        Multi = true,
+        Callback = function(Value)
+            selectedEnemies = Value
+        end
+    })
+
+    Tabs.AutoFarm:AddButton({
+        Title = "Refresh Mob List",
+        Description = "Finds and lists all available mobs in the current map.",
+        Callback = function()
+            RefreshEnemyList()
+        end
+    })
+
+    Tabs.AutoFarm:AddToggle("AutoFarm", {
+        Title = "Auto Farm",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                StartAutoFarm()
+            else
+                StopAutoFarm()
+            end
+        end
+    })
+
+    Tabs.AutoFarm:AddToggle("AutoCollect", {
+        Title = "Auto Collect",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                StartAutoCollect()
+            else
+                StopAutoCollect()
+            end
+        end
+    })
+else
+    warn("Fluent GUI Error: Could not find 'AutoFarm' tab.")
+end
+
+if Tabs and Tabs.Hatch then
+    Tabs.Hatch:AddDropdown("SelectHatchLocation", {
+        Title = "Select Hatch Map",
+        Description = "Choose the egg you want to hatch.",
+        Values = getAvailableHatchTargets(),
+        Default = selectedHatchTarget,
+        Callback = function(Value)
+            selectedHatchTarget = Value
+        end
+    })
+    Tabs.Hatch:AddDropdown("SelectHatchAmount", {
+        Title = "Select Hatch",
+        Description = "Choose how many eggs to hatch at once.",
+        Values = HatchOptions,
+        Default = "Single",
+        Callback = function(Value)
+            selectedHatchOption = Value
+        end
+    })
+    Tabs.Hatch:AddToggle("AutoHatch", {
+        Title = "Auto Hatch",
+        Description = "Continuously hatches eggs at a high speed.",
+        Default = false,
+        Callback = function(Value)
+            if Value then StartAutoHatch() else StopAutoHatch() end
+        end
+    })
+    Tabs.Hatch:AddSlider("HatchDelaySlider", {
+        Title = "Hatch Delay (Seconds)",
+        Description = "ปรับความเร็วการเปิดไข่ ยิ่งน้อยยิ่งไว (0.01 คือไวจัด)",
+        Default = 0.05,
+        Min = 0.01,
+        Max = 0.5,
+        Rounding = 2,
+        Callback = function(Value)
+            hatchDelay = Value
+        end
+    })
+else
+    warn("Fluent GUI Error: Could not find 'Hatch' tab.")
+end
+
+if Tabs and Tabs.Rolls then
+    Tabs.Rolls:AddToggle("Auto Roll", {
+        Title = "Auto Roll",
+        Description = "Continuously rolls the selected gacha.",
+        Default = false,
+        Callback = function(Value)
+            if Value then StartAutoRoll() else StopAutoRoll() end
+        end
+    })
+else
+    warn("Fluent GUI Error: Could not find 'Rolls' tab.")
+end
+
+if Tabs and Tabs.GameModes then
+    Tabs.GameModes:AddParagraph({
+        Title = "GameModes",
+        Content = "No settings available yet for GameModes."
+    })
+else
+    warn("Fluent GUI Error: Could not find 'GameModes' tab.")
+end
+
+if Tabs and Tabs.Teleport then
+    Tabs.Teleport:AddDropdown("SelectTeleportMap", {
+        Title = "Select Map",
+        Description = "Choose a map to instantly teleport to.",
+        Default = selectedTeleportMap,
+        Values = TeleportMaps,
+        Callback = function(Value)
+            --
+        end
+    })
+
+    Tabs.Teleport:AddToggle("TeleportToggle", {
+        Title = "Teleport",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                StartTeleport()
+            else
+                StopTeleport()
+            end
+        end
+    })
+else
+    warn("Fluent GUI Error: Could not find 'Teleport' tab.")
+end
+
+if Tabs and Tabs.Settings then
+    Tabs.Settings:AddButton({
+        Title = "Redeem All Codes",
+        Description = "Automatically redeems a list of codes.",
+        Default = false,
+        Callback = function(Value)
+            StartAutoRedeemCodes()  
+        end
+    })
+    
+    Tabs.Settings:AddToggle("AntiAFKToggle", {
+        Title = "AFK",
+        Description = "Prevents idle kick by making your character jump occasionally.",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                StartAntiAFK()
+            else
+                StopAntiAFK()
+            end
+        end
+    })
+
+    Tabs.Settings:AddToggle("AutoRewardsToggle", {
+        Title = "Auto Rewards",
+        Description = "Automatically claims rewards from the Free Rewards menu.",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                StartAutoRewards()
+            else
+                StopAutoRewards()
+            end
+        end
+    })
+
+    Tabs.Settings:AddToggle("AutoRejoinToggle", {
+        Title = "Auto Rejoin",
+        Description = "Automatically rejoins the game if the server shuts down. This will put you in a new server if the current one is public.",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                StartAutoRejoin()
+            else
+                StopAutoRejoin()
+            end
+        end
+    })
+
+    SaveManager:SetLibrary(Fluent)
+    InterfaceManager:SetLibrary(Fluent)
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:SetIgnoreIndexes({})
+    InterfaceManager:SetFolder("FluentScriptHub")
+    SaveManager:SetFolder("FluentScriptHub/specific-game")
+    InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+    SaveManager:BuildConfigSection(Tabs.Settings)
+else
+    warn("Fluent GUI Error: Could not find 'Settings' tab.")
+end
+
+Window:SelectTab(1)
+
+Fluent:Notify({
+    Title = "Fluent",
+    Content = "The script has been loaded. All core functions have been disabled. Only settings remain.",
+    Duration = 8
+})
+
+SaveManager:LoadAutoloadConfig()
