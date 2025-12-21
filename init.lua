@@ -1,0 +1,24 @@
+local AllowedUsers = {
+    [7687155911] = "MyMainAccount",
+    [0] = "NewUser1", -- เมื่อได้ไอดีใหม่มา ให้เอามาแก้แทนเลข 0 ตรงนี้
+}
+
+local player = game:GetService("Players").LocalPlayer
+
+if not AllowedUsers[player.UserId] then
+    player:Kick("🚫 Access Denied! Your ID: " .. player.UserId .. " is not Whitelisted.")
+    return 
+end
+
+print("✅ Welcome: " .. AllowedUsers[player.UserId])
+
+local Games = {
+    [110483372589393] = "https://raw.githubusercontent.com/Guyeiei/MinakoHub/refs/heads/main/AnimeCelestialX.lua",
+}
+
+local placeId = game.PlaceId
+if Games[placeId] then
+    loadstring(game:HttpGet(Games[placeId], true))()
+else
+    print("ไม่พบสคริปต์สำหรับแมพนี้ ID: " .. placeId)
+end
