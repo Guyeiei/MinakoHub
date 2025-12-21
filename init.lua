@@ -13,7 +13,7 @@ end
 print("✅ Welcome: " .. AllowedUsers[player.UserId])
 
 local Games = {
-    [110483372589393] = "https://raw.githubusercontent.com/Guyeiei/MinakoHub/refs/heads/main/AnimeCelestialX.lua",
+    [110483372589393] = "https://raw.githubusercontent.com/Guyeiei/MinakoHub/refs/heads/main/AnimeClestialX",
 }
 
 local placeId = game.PlaceId
