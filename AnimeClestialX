@@ -40,7 +40,7 @@ local selectedHatchTarget = nil
 local LocalPlayer = game:GetService("Players").LocalPlayer
 local PlayerChar = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
-local HatchRemote = game:GetService("ReplicatedStorage"):WaitForChild("GameRemotes"):WaitForChild("\208\131\210\144\208\145\208\169\208\131\208\131\208\150\208\131")
+local HatchRemote = game:GetService("ReplicatedStorage"):WaitForChild("GameRemotes"):WaitForChild("\208\169\210\144\208\145\208\145\208\130\210\144\208\168\208\168\208\131\208\130")
 
 local ClickEventRemote = {}
 local EggParent = workspace._Main._Eggs
@@ -98,6 +98,13 @@ local function getHatchAmount(option)
     return amounts[option] or 1
 end
 
+local function TeleportToEgg(eggName)
+    local eggFolder = workspace._Main._Eggs:FindFirstChild(eggName)
+    if eggFolder then
+        -- วาร์ปไปที่ตำแหน่งของตู้ไข่ (บวกความสูงขึ้นมาหน่อยกันจมดิน)
+        LocalPlayer.Character.HumanoidRootPart.CFrame = eggFolder:GetModelCFrame() * CFrame.new(0, 3, 5)
+    end
+end
 -- ฟังก์ชันทั้งหมดจะถูกทำให้ว่างเปล่า
 function StartAutoFarm()
     --
@@ -144,6 +151,18 @@ function StopAntiAFK()
 end
 function StartAutoHatch()
     if hatching then return end
+
+    if selectedHatchTarget then
+        TeleportToEgg(selectedHatchTarget)
+    else
+        Fluent:Notify({
+            Title = "Warning",
+            Content = "กรุณาเลือกแมพสุ่มไข่ก่อนครับ!",
+            Duration = 5
+        })
+        return -- ถ้ายังไม่เลือกแมพ ไม่ต้องให้มันรันต่อ
+    end
+
     hatching = true
     task.spawn(function()
         while hatching do
@@ -308,7 +327,7 @@ if Tabs and Tabs.Hatch then
     Tabs.Hatch:AddSlider("HatchDelaySlider", {
         Title = "Hatch Delay (Seconds)",
         Description = "ปรับความเร็วการเปิดไข่ ยิ่งน้อยยิ่งไว (0.01 คือไวจัด)",
-        Default = 0.05,
+        Default = 0.01,
         Min = 0.01,
         Max = 0.5,
         Rounding = 2,
