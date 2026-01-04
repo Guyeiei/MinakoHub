@@ -27,7 +27,6 @@ local Settings = {
     Dungeon = {Enabled = false, EnabledBest = false, Name = "", Diffculty = "", Mode = "Normal", RaidEnabled = false, RaidName = "", Tier = "1"},
     AutoSell = {Enabled = false, Raritys = {}, ItemTypes = {}},
     Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120, RemovePulseVisuals = true, SkillDelay = 0.05},
-    Status = {Physical = false, Spell = false, Stamina = false, EquipBest = false, EquipStat = "Physical"},
     DebugMode = false,
     UI = {Keybind = "RightControl"}
 }
@@ -280,25 +279,14 @@ function Functions:GetBestDungeon()
     end
 end
 
--- Initialize Remotes (Async to prevent blocking UI)
-task.spawn(function()
-    if getupvalue ~= nil then
-        -- Add timeout of 10 seconds
-        local start = tick()
-        repeat task.wait() until (ReplicatedStorage:FindFirstChild("Utility") and ReplicatedStorage.Utility:FindFirstChild("BridgeNet2")) or (tick() - start > 10)
-        
-        if ReplicatedStorage:FindFirstChild("Utility") then
-             pcall(function()
-                local RemoteModule = require(ReplicatedStorage.Utility.BridgeNet2.Client.ClientIdentifiers)
-                for i,v in pairs(getupvalue(RemoteModule["deser"],2)) do
-                    RemoteCodes[v] = i
-                end
-             end)
-        end
+-- Initialize Remotes
+if getupvalue ~= nil then
+    repeat task.wait() until ReplicatedStorage:FindFirstChild("Utility") and ReplicatedStorage.Utility:FindFirstChild("BridgeNet2") and ReplicatedStorage.Utility.BridgeNet2:FindFirstChild("Client") and ReplicatedStorage.Utility.BridgeNet2.Client:FindFirstChild("ClientIdentifiers")
+    RemoteModule = require(ReplicatedStorage.Utility.BridgeNet2.Client.ClientIdentifiers)
+    for i,v in pairs(getupvalue(RemoteModule["deser"],2)) do
+        RemoteCodes[v] = i
     end
-end)
-
-if not next(RemoteCodes) then
+else
     RemoteCodes={["DungeonRetryBridge"]="/",["CharacterSelection"]="M",["PartySystem"]="d",["Cutscene"]="\184",["Intro"]="5",["DungeonHandler"]=";",["Abilities"]="G"}
 end
 
@@ -509,63 +497,6 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
         Value = Settings.Dungeon.Tier,
         Callback = function(v)
             Settings.Dungeon.Tier = v
-            SaveSettings()
-        end
-    })
-end
-
--- 1.5 Status Tab
-local TabStatus = Window:Tab({Title = "Status", Icon = "bar-chart-2"}) do
-    TabStatus:Section({Title = "Auto Upgrade Stats"})
-    
-    TabStatus:Toggle({
-        Title = "Upgrade Physical",
-        Desc = "Auto add points to Physical",
-        Value = Settings.Status.Physical,
-        Callback = function(v)
-            Settings.Status.Physical = v
-            SaveSettings()
-        end
-    })
-
-    TabStatus:Toggle({
-        Title = "Upgrade Spell",
-        Desc = "Auto add points to Spell",
-        Value = Settings.Status.Spell,
-        Callback = function(v)
-            Settings.Status.Spell = v
-            SaveSettings()
-        end
-    })
-
-    TabStatus:Toggle({
-        Title = "Upgrade Stamina",
-        Desc = "Auto add points to Stamina",
-        Value = Settings.Status.Stamina,
-        Callback = function(v)
-            Settings.Status.Stamina = v
-            SaveSettings()
-        end
-    })
-
-    TabStatus:Section({Title = "Auto Equip"})
-
-    TabStatus:Dropdown({
-        Title = "Select Stats",
-        Values = {"Physical", "Spell", "Health"},
-        Value = Settings.Status.EquipStat,
-        Callback = function(v)
-            Settings.Status.EquipStat = v
-            SaveSettings()
-        end
-    })
-
-    TabStatus:Toggle({
-        Title = "Equip Best",
-        Desc = "Auto equip best items by selected stat",
-        Value = Settings.Status.EquipBest,
-        Callback = function(v)
-            Settings.Status.EquipBest = v
             SaveSettings()
         end
     })
@@ -801,81 +732,6 @@ task.spawn(function()
             end
         end)
     end    
-end)
-
--- Status / Stats Loop
-task.spawn(function()
-    while true do task.wait(0.5)
-        -- Upgrade Stats
-        if Settings.Status.Physical then
-             local args = {{ {string.char(1), {stat = "physicalPower", amount = 1}} }, "%"}
-             ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
-        end
-        if Settings.Status.Spell then
-             local args = {{ {string.char(1), {stat = "spellPower", amount = 1}} }, "%"}
-             ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
-        end
-        if Settings.Status.Stamina then
-             local args = {{ {string.char(1), {stat = "stamina", amount = 1}} }, "%"}
-             ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
-        end
-        
-        -- Equip Best
-        if Settings.Status.EquipBest then
-            local slots = {"weapon", "helmet", "chest", "ability", "ring"}
-            local targetStat = Settings.Status.EquipStat -- "Physical", "Spell", "Health"
-            local statKey = "physicalPower"
-            if targetStat == "Spell" then statKey = "spellPower" end
-            if targetStat == "Health" then statKey = "health" end 
-
-            local inventory = Functions:GetInventoryItems()
-            local bestItems = {}
-
-            -- Find Best Items
-            for _, item in pairs(inventory) do
-                if item.data and type(item.data) == "table" then
-                    local itemStat = item.data[statKey] or 0
-                    if statKey == "health" and itemStat == 0 then itemStat = item.data.stamina or 0 end
-                    
-                    local msgType = item.itemType
-                    if not bestItems[msgType] or itemStat > bestItems[msgType].stat then
-                        bestItems[msgType] = {item = item, stat = itemStat}
-                    end
-                end
-            end
-            
-            -- Equip Them
-            for _, slot in pairs(slots) do
-                if bestItems[slot] and bestItems[slot].item then
-                    local item = bestItems[slot].item
-                    if not item.equipped then
-                        local category = item.itemType .. "s"
-                        if item.itemType == "ability" then category = "abilities" end
-                        
-                        item.data.equipped = true 
-                        
-                        local equipArgs = {
-                            {
-                                {
-                                    string.char(1),
-                                    {
-                                        itemType = item.itemType,
-                                        category = category,
-                                        data = item.data,
-                                        equipped = true,
-                                        slot = item.itemType 
-                                    }
-                                }
-                            },
-                            string.char(30)
-                        }
-                        ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(equipArgs))
-                        task.wait(0.2)
-                    end
-                end
-            end
-        end
-    end
 end)
 
 local JoinDebounce = false
