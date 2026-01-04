@@ -8,20 +8,13 @@ if getgenv().DQ_Connections then
     end
 end
 if getgenv().DQ_UI and getgenv().DQ_UI.Window then
-    -- Attempt to close old window if it exists (WindUI doesn't always expose Destroy easily on the object, but we'll try)
+    -- Attempt to close old window
     pcall(function() getgenv().DQ_UI.Window:Destroy() end) 
-    -- If WindUI binds to CoreGui, we might need to find the ScreenGui manually
-    local core = game:GetService("CoreGui")
-    for _, v in pairs(core:GetChildren()) do
-        if v.Name == "Dungeon Quest!" or v:FindFirstChild("Main") then -- Heuristic for WindUI
-             -- v:Destroy() -- Risky if generic name, but WindUI usually names it.
-        end
-    end
 end
 
 -- Reset State
 getgenv().DQ_Connections = {}
-getgenv().DQ_Running = true -- Loop flag
+getgenv().DQ_Running = true 
 
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
@@ -644,7 +637,7 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
 
     TabMisc:Toggle({
         Title = "Remove Pulse Visuals",
-        Desc = "Boosts FPS by removing all particles/effects",
+        Desc = "Boosts FPS by removing visual effects",
         Value = Settings.Misc.RemovePulseVisuals,
         Callback = function(v)
             Settings.Misc.RemovePulseVisuals = v
@@ -836,12 +829,18 @@ end)
 
 -- Event Listeners --
 
--- Aggressive Visual Optimization (FPS Booster)
-AddConn(workspace.DescendantAdded:Connect(function(descendant)
-    if Settings.Misc.RemovePulseVisuals then
-        if descendant:IsA("ParticleEmitter") or descendant:IsA("Trail") or descendant:IsA("Beam") or descendant:IsA("Explosion") or descendant:IsA("Sparkles") or descendant:IsA("Fire") then
-            task.delay(0, function() descendant:Destroy() end) -- Immediate Destroy
-        end
+-- Fix: Reverting DescendantAdded as it causes massive lag
+-- Moving back to ChildAdded for specific removal + a light heartbeat loop if needed, 
+-- but for now the user wants to remove "Flashy" things, so ChildAdded is safer.
+AddConn(workspace.ChildAdded:Connect(function(child)
+    if child.Name == "Coin" then
+        GreggCoin = true; RealCoin = child
+    end
+    -- Safe Visual Removal
+    if Settings.Misc.RemovePulseVisuals == true then
+        if child.Name == "pulseWavesWave" or child.Name == "groundAura" or child.Name == "pulseWavesHitbox" then
+            task.delay(0, function() child:Destroy() end)
+        end 
     end
 end))
 
@@ -859,18 +858,6 @@ if Players.LocalPlayer.PlayerGui:FindFirstChild("cutscene") then
         end
     end))
 end
-
-AddConn(workspace.ChildAdded:Connect(function(child)
-    if child.Name == "Coin" then
-        GreggCoin = true; RealCoin = child
-    end
-    -- Keep specific names for backwards compat/safety
-    if Settings.Misc.RemovePulseVisuals == true then
-        if child.Name == "pulseWavesWave" or child.Name == "groundAura" or child.Name == "pulseWavesHitbox" then
-            task.delay(0, function() child:Destroy() end)
-        end 
-    end
-end))
 
 -- Auto Kick/Error Recovery
 AddConn(GuiService.ErrorMessageChanged:Connect(function()
@@ -908,15 +895,17 @@ end)
 WindUI:Notify({Title = "Loaded", Content = "Dungeon Quest Script Loaded!", Duration = 5})
 
 -- Queue on Teleport (Safe Fallback)
--- Only run queue_on_teleport if user is NOT using AutoExecute to avoid double-loading risks,
--- BUT since we have the cleanup/duplicate check at the top, it IS safe to have both.
--- This ensures that if they don't have AutoExecute, it still persists.
+-- If AutoExecute is used, we generally don't want queue_on_teleport to stack.
+-- However, we have clean-up logic at the top.
+-- If the user wants to play safely, we can comment it out or leave it. 
+-- Since clean-up logic is robust (disconnecting all connections), it is safer to leave it. 
+-- The lag was purely the DescendantAdded listener.
 if queue_on_teleport then
     queue_on_teleport([[
         repeat task.wait() until game:IsLoaded()
         repeat task.wait() until game:GetService("Players").LocalPlayer
         repeat task.wait() until game:GetService("Players").LocalPlayer.PlayerGui
-        task.wait(1) -- Slightly increased wait for safety
+        task.wait(1) 
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Guyeiei/MinakoHub/main/DungeonQuest.lua"))()
     ]])
 end
