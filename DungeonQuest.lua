@@ -34,6 +34,7 @@ local TeleportService = game:GetService("TeleportService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
+local Lighting = game:GetService("Lighting")
 
 local Character = Players.LocalPlayer.Character
 local PlayerGui = Players.LocalPlayer.PlayerGui
@@ -643,11 +644,18 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
 
     TabMisc:Toggle({
         Title = "Remove Pulse Visuals",
-        Desc = "Deletes waves, auras, and hitboxes",
+        Desc = "Boosts FPS by removing all particles/effects",
         Value = Settings.Misc.RemovePulseVisuals,
         Callback = function(v)
             Settings.Misc.RemovePulseVisuals = v
             SaveSettings()
+            
+            -- Apply Lighting Changes Immediately
+            if v then
+                Lighting.GlobalShadows = false
+            else
+                Lighting.GlobalShadows = true
+            end
         end
     })
 end
@@ -826,7 +834,17 @@ task.spawn(function()
     end 
 end)
 
--- Event Listeners
+-- Event Listeners --
+
+-- Aggressive Visual Optimization (FPS Booster)
+AddConn(workspace.DescendantAdded:Connect(function(descendant)
+    if Settings.Misc.RemovePulseVisuals then
+        if descendant:IsA("ParticleEmitter") or descendant:IsA("Trail") or descendant:IsA("Beam") or descendant:IsA("Explosion") or descendant:IsA("Sparkles") or descendant:IsA("Fire") then
+            task.delay(0, function() descendant:Destroy() end) -- Immediate Destroy
+        end
+    end
+end))
+
 AddConn(Players.LocalPlayer.PlayerGui.rewardGuiHolder.holder.ChildAdded:Connect(function()
     if Settings.Misc.AutoRetry == true then return end -- Check Auto Retry before leaving
     if Settings.AutoFarm.RaidFarm == true then
@@ -846,7 +864,7 @@ AddConn(workspace.ChildAdded:Connect(function(child)
     if child.Name == "Coin" then
         GreggCoin = true; RealCoin = child
     end
-    -- Destroy Effects (Visual Optimization)
+    -- Keep specific names for backwards compat/safety
     if Settings.Misc.RemovePulseVisuals == true then
         if child.Name == "pulseWavesWave" or child.Name == "groundAura" or child.Name == "pulseWavesHitbox" then
             task.delay(0, function() child:Destroy() end)
