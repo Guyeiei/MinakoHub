@@ -1,3 +1,28 @@
+-- Dungeon Quest Script (Auto-Execute Friendly)
+-- Updated for Stability & Persistence
+
+-- 1. CLEANUP & SINGLETON CHECK --
+if getgenv().DQ_Connections then
+    for _, conn in pairs(getgenv().DQ_Connections) do
+        if conn then conn:Disconnect() end
+    end
+end
+if getgenv().DQ_UI and getgenv().DQ_UI.Window then
+    -- Attempt to close old window if it exists (WindUI doesn't always expose Destroy easily on the object, but we'll try)
+    pcall(function() getgenv().DQ_UI.Window:Destroy() end) 
+    -- If WindUI binds to CoreGui, we might need to find the ScreenGui manually
+    local core = game:GetService("CoreGui")
+    for _, v in pairs(core:GetChildren()) do
+        if v.Name == "Dungeon Quest!" or v:FindFirstChild("Main") then -- Heuristic for WindUI
+             -- v:Destroy() -- Risky if generic name, but WindUI usually names it.
+        end
+    end
+end
+
+-- Reset State
+getgenv().DQ_Connections = {}
+getgenv().DQ_Running = true -- Loop flag
+
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 -- Variable Setup --
@@ -7,6 +32,8 @@ local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 
 local Character = Players.LocalPlayer.Character
 local PlayerGui = Players.LocalPlayer.PlayerGui
@@ -62,6 +89,11 @@ local Raritys = {
 
 local RemoteCodes = {}
 
+-- Helper: Add Connection
+local function AddConn(signal)
+    table.insert(getgenv().DQ_Connections, signal)
+end
+
 -- Functions --
 
 local function SaveSettings()
@@ -89,10 +121,10 @@ LoadSettings() -- Load on start
 
 local Functions = {}
 
-Players.LocalPlayer.CharacterAdded:Connect(function(char)
+AddConn(Players.LocalPlayer.CharacterAdded:Connect(function(char)
     Character = char
     repeat task.wait() until Character:FindFirstChild("HumanoidRootPart")
-end)
+end))
 
 function Functions:GetInventoryItems()
     local tbl = {}
@@ -282,6 +314,9 @@ local Window = WindUI:CreateWindow({
     Icon = "door-open",
     Author = "by Minako",
 })
+
+-- Store UI Instance for Cleanup
+getgenv().DQ_UI = {Window = Window}
 
 Window:EditOpenButton({
     Title = "Open Config",
@@ -641,24 +676,22 @@ local TabSettings = Window:Tab({Title = "Settings", Icon = "settings"}) do
 end
 
 -- Default Keybind Init --
-local UserInputService = game:GetService("UserInputService")
 local isToggled = true
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+AddConn(UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode[Settings.UI.Keybind or "RightControl"] then
         isToggled = not isToggled
-        Window.Enabled = isToggled -- Property might be 'Enabled' or utilize Toggle method if available
+        Window.Enabled = isToggled 
         pcall(function() Window:Toggle() end)
         pcall(function() if Window.Instance then Window.Instance.Enabled = isToggled end end)
     end
-end)
+end))
 
 -- Logic Loops --
 
 -- Rejoin If Stuck Loop
 task.spawn(function()
-    while true do task.wait(1)
+    while getgenv().DQ_Running do task.wait(1)
         if Settings.Misc.RejoinIfStuck == true then
             if LastplayerPos and Character and (LastplayerPos - Character:GetPivot().p).Magnitude < 1 then
                 StuckTime = StuckTime + 1
@@ -673,7 +706,7 @@ end)
 
 -- Name Hider Loop
 task.spawn(function()
-    while true do task.wait()
+    while getgenv().DQ_Running do task.wait()
         pcall(function()
             if Character and Character:FindFirstChild("Head") and Character.Head:FindFirstChild("playerNameplate") then
                 local hud = Players.LocalPlayer.PlayerGui:FindFirstChild("HUD")
@@ -701,7 +734,7 @@ end)
 local JoinDebounce = false
 -- Main Logic Loop (Auto Sell, Dungeon Join, Auto Farm)
 task.spawn(function()
-    while true do task.wait(Settings.Misc.SkillDelay or 0.05)
+    while getgenv().DQ_Running do task.wait(Settings.Misc.SkillDelay or 0.05)
         -- Auto Sell
         if Settings.AutoSell.Enabled == true then
             local args = {["chest"] = {},["helmet"] = {},["ability"] = {},["ring"] = {},["weapon"] = {}}
@@ -794,22 +827,22 @@ task.spawn(function()
 end)
 
 -- Event Listeners
-Players.LocalPlayer.PlayerGui.rewardGuiHolder.holder.ChildAdded:Connect(function()
+AddConn(Players.LocalPlayer.PlayerGui.rewardGuiHolder.holder.ChildAdded:Connect(function()
     if Settings.Misc.AutoRetry == true then return end -- Check Auto Retry before leaving
     if Settings.AutoFarm.RaidFarm == true then
         TeleportService:Teleport(2414851778, Players.LocalPlayer)
     end
-end)
+end))
 
 if Players.LocalPlayer.PlayerGui:FindFirstChild("cutscene") then
-    Players.LocalPlayer.PlayerGui.cutscene.Changed:Connect(function(change)
+    AddConn(Players.LocalPlayer.PlayerGui.cutscene.Changed:Connect(function(change)
         if change == "Enabled" then
             ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {["\3"] = "skip"},[2] = RemoteCodes["Cutscene"]})        
         end
-    end)
+    end))
 end
 
-workspace.ChildAdded:Connect(function(child)
+AddConn(workspace.ChildAdded:Connect(function(child)
     if child.Name == "Coin" then
         GreggCoin = true; RealCoin = child
     end
@@ -819,12 +852,12 @@ workspace.ChildAdded:Connect(function(child)
             task.delay(0, function() child:Destroy() end)
         end 
     end
-end)
+end))
 
 -- Auto Kick/Error Recovery
-game:GetService("GuiService").ErrorMessageChanged:Connect(function()
+AddConn(GuiService.ErrorMessageChanged:Connect(function()
     TeleportService:Teleport(2414851778, Players.LocalPlayer)
-end)
+end))
 
 -- Auto Retry Listener (Robust w/ Click Fallback)
 task.spawn(function()
@@ -849,20 +882,23 @@ task.spawn(function()
             end
          end
          
-         retryUI:GetPropertyChangedSignal("Enabled"):Connect(TryRetry)
+         AddConn(retryUI:GetPropertyChangedSignal("Enabled"):Connect(TryRetry))
          if retryUI.Enabled then TryRetry() end
     end
 end)
 
 WindUI:Notify({Title = "Loaded", Content = "Dungeon Quest Script Loaded!", Duration = 5})
 
--- Auto Execute on Teleport (Preserve Script)
+-- Queue on Teleport (Safe Fallback)
+-- Only run queue_on_teleport if user is NOT using AutoExecute to avoid double-loading risks,
+-- BUT since we have the cleanup/duplicate check at the top, it IS safe to have both.
+-- This ensures that if they don't have AutoExecute, it still persists.
 if queue_on_teleport then
     queue_on_teleport([[
         repeat task.wait() until game:IsLoaded()
         repeat task.wait() until game:GetService("Players").LocalPlayer
         repeat task.wait() until game:GetService("Players").LocalPlayer.PlayerGui
-        task.wait(0.5) 
+        task.wait(1) -- Slightly increased wait for safety
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Guyeiei/MinakoHub/main/DungeonQuest.lua"))()
     ]])
 end
