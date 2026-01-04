@@ -767,7 +767,7 @@ WindUI:Notify({Title = "Loaded", Content = "Dungeon Quest Script Loaded!", Durat
 if queue_on_teleport then
     queue_on_teleport([[
         if not game:IsLoaded() then game.Loaded:Wait() end
-        -- Link to your repository (Assuming file is named 'ui.lua')
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Guyeiei/MinakoHub/main/ui.lua"))()
+        -- Link to your repository (Assuming file is named 'DungeonQuest.lua')
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Guyeiei/MinakoHub/main/DungeonQuest.lua"))()
     ]])
 end
