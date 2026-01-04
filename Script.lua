@@ -1,6 +1,7 @@
 local AllowedUsers = {
     [7687155911] = "KazumiNaoki002",
     [7687172761] = "KazumiNaoki003",
+    [10247634512] = "Minako_Blessed",
     [0] = "NewUser2", -- เมื่อได้ไอดีใหม่มา ให้เอามาแก้แทนเลข 0 ตรงนี้
 }
 
