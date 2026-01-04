@@ -282,10 +282,32 @@ Window:EditOpenButton({
     Draggable = true,
 })
 
--- Get Best Dungeon for Defaults
-Functions:GetBestDungeon()
-if Settings.Dungeon.Name == "" then Settings.Dungeon.Name = BestDungeon end
-if Settings.Dungeon.Diffculty == "" then Settings.Dungeon.Diffculty = BestDifficulty end
+-- Initialize Dropdown Variables
+local DungeonDropdown, DifficultyDropdown
+
+-- Safe Defaults to prevent Blank UI
+if Settings.Dungeon.Name == "" or Settings.Dungeon.Name == "nil" then Settings.Dungeon.Name = "Desert Temple" end
+if Settings.Dungeon.Diffculty == "" then Settings.Dungeon.Diffculty = "Easy" end
+
+-- Get Best Dungeon for Defaults (Async Update)
+task.spawn(function()
+    pcall(function()
+        if not Players.LocalPlayer:FindFirstChild("leaderstats") then
+            Players.LocalPlayer:WaitForChild("leaderstats", 10)
+        end
+        Functions:GetBestDungeon()
+        
+        -- Update UI if discovered better dungeon
+        if BestDungeon and BestDungeon ~= "nil" then
+             if DungeonDropdown and DungeonDropdown.Set then DungeonDropdown:Set(BestDungeon) end
+             Settings.Dungeon.Name = BestDungeon
+        end
+        if BestDifficulty then
+             if DifficultyDropdown and DifficultyDropdown.Set then DifficultyDropdown:Set(BestDifficulty) end
+             Settings.Dungeon.Diffculty = BestDifficulty
+        end
+    end)
+end)
 
 -- 1. Auto Farm Tab --
 local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
@@ -365,7 +387,7 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
     })
 
     local DungeonList = {"Desert Temple","Winter Outpost","Pirate Island","King's Castle","The Underworld","Samurai Palace","The Canals","Ghastly Harbor","Steampunk Sewers","Orbital Outpost","Volcanic Chambers","Aquatic Temple","Enchanted Forest","Northen Lands","Gilded Skies","Yokai Peak","Abyssal Void"}
-    TabAutoFarm:Dropdown({
+    DungeonDropdown = TabAutoFarm:Dropdown({
         Title = "Dungeon",
         Values = DungeonList,
         Value = Settings.Dungeon.Name,
@@ -375,7 +397,7 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
         end
     })
 
-    TabAutoFarm:Dropdown({
+    DifficultyDropdown = TabAutoFarm:Dropdown({
         Title = "Difficulty",
         Values = {"Easy", "Medium", "Hard", "Insane", "Nightmare"},
         Value = Settings.Dungeon.Diffculty,
@@ -748,18 +770,33 @@ workspace.ChildAdded:Connect(function(child)
     end
 end)
 
-game:GetService("GuiService").ErrorMessageChanged:Connect(function()
-    TeleportService:Teleport(2414851778, Players.LocalPlayer)
-end)
 
--- Auto Retry Listener
-if Players.LocalPlayer.PlayerGui:FindFirstChild("RetryVote") then
-    Players.LocalPlayer.PlayerGui.RetryVote.Changed:Connect(function(change)
-        if change == "Enabled" and Settings.Misc.AutoRetry == true then
-            ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {["\3"] = "vote",["vote"] = true},[2] = RemoteCodes["DungeonRetryBridge"]})    
-        end
-    end)
-end
+
+-- Auto Retry Listener (Robust w/ Click Fallback)
+task.spawn(function()
+    local retryUI = Players.LocalPlayer.PlayerGui:WaitForChild("RetryVote", 9999) 
+    if retryUI then
+        retryUI.Changed:Connect(function(change)
+            if change == "Enabled" and Settings.Misc.AutoRetry == true then
+                -- 1. Fire Remote
+                ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {["\3"] = "vote",["vote"] = true},[2] = RemoteCodes["DungeonRetryBridge"]})    
+                
+                -- 2. Click Button (Fallback)
+                task.delay(0.5, function()
+                    local btn = retryUI:FindFirstChild("Frame") and retryUI.Frame:FindFirstChild("Retry")
+                    if btn and btn.Visible then
+                         local vim = game:GetService("VirtualInputManager")
+                         local x = btn.AbsolutePosition.X + (btn.AbsoluteSize.X / 2)
+                         local y = btn.AbsolutePosition.Y + (btn.AbsoluteSize.Y / 2)
+                         vim:SendMouseButtonEvent(x, y, 0, true, game, 1)
+                         task.wait(0.05)
+                         vim:SendMouseButtonEvent(x, y, 0, false, game, 1)
+                    end
+                end)
+            end
+        end)
+    end
+end)
 
 WindUI:Notify({Title = "Loaded", Content = "Dungeon Quest Script Loaded!", Duration = 5})
 
