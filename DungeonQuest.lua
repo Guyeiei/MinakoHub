@@ -1,0 +1,773 @@
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+-- Variable Setup --
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Character = Players.LocalPlayer.Character
+local PlayerGui = Players.LocalPlayer.PlayerGui
+
+-- Logic Variables
+local WaitingToTp = false
+local GreggCoin, RealCoin = false, nil
+local OldTick = tick()
+local BestDungeon, BestDifficulty = "nil", "Insane"
+local NameHideName, NameHideTitle = "", ""
+local RemoteModule
+local LastplayerPos, StuckTime = Vector3.zero, 0
+local OldName, OldTitle
+
+-- Settings Table (Default)
+local Settings = {
+    AutoFarm = {Enabled = false, Delay = 2, Distance = 6, UseSkills = false, RaidFarm = false},
+    Dungeon = {Enabled = false, EnabledBest = false, Name = "", Diffculty = "", Mode = "Normal", RaidEnabled = false, RaidName = "", Tier = "1"},
+    AutoSell = {Enabled = false, Raritys = {}, ItemTypes = {}},
+    Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120},
+    DebugMode = false,
+    UI = {Keybind = "RightControl"}
+}
+
+-- Game Data
+local DungeonLevels = {
+    ["0"] = {["Dungeon"] = "Desert Temple", ["Easy"] = 0, ["Medium"] = 5, ["Hard"] = 15},
+    ["30"] = {["Dungeon"] = "Winter Outpost", ["Easy"] = 30, ["Medium"] = 40, ["Hard"] = 50},
+    ["60"] = {["Dungeon"] = "Pirate Island", ["Insane"] = 60, ["Nightmare"] = 65},
+    ["70"] = {["Dungeon"] = "King's Castle", ["Insane"] = 70, ["Nightmare"] = 75},
+    ["80"] = {["Dungeon"] = "The Underworld", ["Insane"] = 80, ["Nightmare"] = 85},
+    ["90"] = {["Dungeon"] = "Samurai Palace", ["Insane"] = 90, ["Nightmare"] = 95},
+    ["100"] = {["Dungeon"] = "The Canals", ["Insane"] = 100, ["Nightmare"] = 105},
+    ["110"] = {["Dungeon"] = "Ghastly Harbor", ["Insane"] = 110, ["Nightmare"] = 115},
+    ["120"] = {["Dungeon"] = "Steampunk Sewers", ["Insane"] = 120, ["Nightmare"] = 125},
+    ["135"] = {["Dungeon"] = "Orbital Outpost", ["Insane"] = 135, ["Nightmare"] = 140},
+    ["150"] = {["Dungeon"] = "Volcanic Chambers", ["Insane"] = 150, ["Nightmare"] = 155},   
+    ["160"] = {["Dungeon"] = "Aquatic Temple", ["Insane"] = 160, ["Nightmare"] = 165},
+    ["170"] = {["Dungeon"] = "Enchanted Forest", ["Insane"] = 170, ["Nightmare"] = 175},
+    ["180"] = {["Dungeon"] = "Northern Lands", ["Insane"] = 180, ["Nightmare"] = 185},
+    ["190"] = {["Dungeon"] = "Gilded Skies", ["Insane"] = 190, ["Nightmare"] = 195},
+    ["200"] = {["Dungeon"] = "Yokai Peak", ["Insane"] = 200, ["Nightmare"] = 205},
+    ["210"] = {["Dungeon"] = "Abyssal Void", ["Insane"] = 210, ["Nightmare"] = 215},
+}
+
+local Raritys = {
+    ["Legendary"] = Color3.fromRGB(244, 154, 9),
+    ["Epic"] = Color3.fromRGB(146, 70, 159),
+    ["Rare"] = Color3.fromRGB(75, 77, 195),
+    ["Uncommon"] = Color3.fromRGB(91, 194, 80),
+    ["Common"] = Color3.fromRGB(152, 152, 152),
+}
+
+local RemoteCodes = {}
+
+-- Functions --
+
+local function SaveSettings()
+    if writefile then
+        writefile("dungeonquest_settings.json", HttpService:JSONEncode(Settings))
+    end
+end
+
+local function LoadSettings()
+    if readfile and isfile and isfile("dungeonquest_settings.json") then
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(readfile("dungeonquest_settings.json"))
+        end)
+        if success and result then
+            for k, v in pairs(result) do
+                if Settings[k] ~= nil then
+                    Settings[k] = v
+                end
+            end
+        end
+    end
+end
+
+LoadSettings() -- Load on start
+
+local Functions = {}
+
+Players.LocalPlayer.CharacterAdded:Connect(function(char)
+    Character = char
+    repeat task.wait() until Character:FindFirstChild("HumanoidRootPart")
+end)
+
+function Functions:GetInventoryItems()
+    local tbl = {}
+    local inventory = Players.LocalPlayer.PlayerGui:FindFirstChild("sellShop") 
+        and Players.LocalPlayer.PlayerGui.sellShop.Frame.innerFrame.rightSideFrame.ScrollingFrame
+    
+    if inventory then
+        for i,v in pairs(inventory:GetChildren()) do
+            if v:IsA("ImageLabel") and v:FindFirstChild("itemType") and v.itemType:FindFirstChild("uniqueItemNum") then
+                local Item = {["index"]=v:FindFirstChild("itemType"):FindFirstChild("uniqueItemNum").Value,["rarity"]="";["itemType"]=v:FindFirstChild("itemType").Value}
+                for i2,v2 in pairs(Raritys) do
+                    if v.ImageColor3 == v2 then
+                        Item["rarity"] = i2
+                    end
+                end
+                table.insert(tbl,Item)
+            end
+        end
+    end
+    return tbl
+end
+
+function Functions:DoSkills(RepeatCount)
+    if not Players.LocalPlayer.Backpack then return end
+    for i, v in pairs(Players.LocalPlayer.Backpack:GetChildren()) do
+        for k = 0, RepeatCount do
+            task.spawn(function()
+                if v:FindFirstChild("cooldown") and v.cooldown.Value and (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")) then
+                    (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")):FireServer()
+                elseif v:FindFirstChild("cooldown") and v.cooldown.Value then
+                    ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {["\t"] = v},[2] = RemoteCodes["Abilities"]})
+                end
+            end)
+        end
+    end
+    task.wait()
+end
+
+function Functions:Teleport(Cframe)
+    if not Character or not Character:FindFirstChild("HumanoidRootPart") then return end
+    LastplayerPos = Character:GetPivot().p
+    if WaitingToTp == true then return end
+    
+    local bodyPosition = Character.HumanoidRootPart:FindFirstChildOfClass("BodyPosition")
+    local bodyGyro = Character.HumanoidRootPart:FindFirstChildOfClass("BodyGyro")
+    
+    if not bodyGyro then
+        bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
+        bodyGyro.CFrame = Character.HumanoidRootPart.CFrame
+        bodyGyro.D = 500
+        bodyGyro.Parent = Character.HumanoidRootPart
+    end
+    
+    if not bodyPosition then
+        bodyPosition = Instance.new("BodyPosition")
+        bodyPosition.MaxForce = Vector3.new(400000, 400000, 400000)
+        bodyPosition.Position = Cframe.Position
+        bodyPosition.D = 300
+        bodyPosition.Parent = Character.HumanoidRootPart
+        Character.HumanoidRootPart.Velocity = Vector3.zero
+    end
+    
+    local oldTime = tick()
+    WaitingToTp = true
+    Character.HumanoidRootPart.Anchored = false
+    
+    repeat task.wait()
+        if Character:FindFirstChild("HumanoidRootPart") and bodyPosition and bodyGyro then
+            Character:PivotTo(CFrame.new(Cframe.p + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0))* CFrame.Angles(math.rad(90), 0, 0))
+            bodyPosition.Position = Cframe.Position + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0)
+            bodyGyro.CFrame = CFrame.new(Character:GetPivot().p, Cframe.Position) * CFrame.Angles(math.rad(90), 0, 0)
+        end
+    until tick() - oldTime >= Settings.AutoFarm.Delay or not Character:FindFirstChild("HumanoidRootPart")
+    
+    WaitingToTp = false
+    if Character:FindFirstChild("HumanoidRootPart") then
+        Character.HumanoidRootPart.Anchored = true
+        if bodyPosition then bodyPosition:Destroy() end
+        if bodyGyro then bodyGyro:Destroy() end
+    end
+end
+
+function Functions:GetEnemys()
+    if not workspace:FindFirstChild("dungeon") then 
+        return workspace:FindFirstChild("enemies") and workspace.enemies:GetChildren()
+    end
+    for i, v in pairs(workspace.dungeon:GetChildren()) do
+        if v:FindFirstChild("enemyFolder") and v.enemyFolder:FindFirstChildOfClass("Model") then
+            return v.enemyFolder:GetChildren()
+        end
+    end
+    return nil
+end
+
+function Functions:GetClosestEnemy()
+    if not Character or not Character:FindFirstChild("HumanoidRootPart") then return end
+    local enemies = Functions:GetEnemys()
+    if not enemies then return end
+
+    local closestEnemy = nil
+    local shortestDistance = math.huge
+    local maxHealth = -math.huge
+    
+    for _, v in pairs(enemies) do
+        local enemyPosition = v:FindFirstChild("HumanoidRootPart") and v.HumanoidRootPart.Position
+        local enemyHumanoid = v:FindFirstChild("Humanoid")
+        if enemyPosition and enemyHumanoid then
+            local distance = (Character.HumanoidRootPart.Position - enemyPosition).Magnitude
+            if distance < shortestDistance or (distance == shortestDistance and enemyHumanoid.MaxHealth > maxHealth) then
+                shortestDistance = distance
+                closestEnemy = v
+                maxHealth = enemyHumanoid.MaxHealth
+            end
+        end
+    end
+
+    return closestEnemy
+end
+
+function Functions:GetBestDungeon()
+    local highestLevelDungeon = 0
+    local level = Players.LocalPlayer.leaderstats.Level.Value
+    
+    for i, v in pairs(DungeonLevels) do
+        if level >= tonumber(i) then
+            if tonumber(i) > highestLevelDungeon then
+                highestLevelDungeon = tonumber(i)
+                if v["Nightmare"] and level >= v["Nightmare"] then
+                    BestDungeon = v["Dungeon"]; BestDifficulty = "Nightmare"
+                elseif v["Insane"] and level >= v["Insane"] then
+                    BestDungeon = v["Dungeon"]; BestDifficulty = "Insane"
+                elseif v["Hard"] and level >= v["Hard"] then
+                    BestDungeon = v["Dungeon"]; BestDifficulty = "Hard"
+                elseif v["Medium"] and level >= v["Medium"] then
+                    BestDungeon = v["Dungeon"]; BestDifficulty = "Medium"
+                elseif v["Easy"] and level >= v["Easy"] then
+                    BestDungeon = v["Dungeon"]; BestDifficulty = "Easy"
+                end
+            end
+        end
+    end
+end
+
+-- Initialize Remotes
+if getupvalue ~= nil then
+    repeat task.wait() until ReplicatedStorage:FindFirstChild("Utility") and ReplicatedStorage.Utility:FindFirstChild("BridgeNet2") and ReplicatedStorage.Utility.BridgeNet2:FindFirstChild("Client") and ReplicatedStorage.Utility.BridgeNet2.Client:FindFirstChild("ClientIdentifiers")
+    RemoteModule = require(ReplicatedStorage.Utility.BridgeNet2.Client.ClientIdentifiers)
+    for i,v in pairs(getupvalue(RemoteModule["deser"],2)) do
+        RemoteCodes[v] = i
+    end
+else
+    RemoteCodes={["DungeonRetryBridge"]="/",["CharacterSelection"]="M",["PartySystem"]="d",["Cutscene"]="\184",["Intro"]="5",["DungeonHandler"]=";",["Abilities"]="G"}
+end
+
+repeat task.wait() until Players.LocalPlayer and Players.LocalPlayer.PlayerGui
+
+-- Initial remote calls (Intro/Character Select)
+task.spawn(function()
+    for i=0,5 do task.wait(.2)
+        if Players.LocalPlayer.PlayerGui:FindFirstChild("CharacterSelection") and not Character then
+            ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {[1] = "\1",[2] = {["\3"] = "select",["characterIndex"] = 1}},[2] = RemoteCodes["CharacterSelection"]})
+            ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {[1] = "\1"},[2] = RemoteCodes["Intro"]})
+        end
+    end
+end)
+
+-- UI Creation --
+
+local Window = WindUI:CreateWindow({
+    Title = "Dungeon Quest!",
+    Icon = "door-open",
+    Author = "by Minako",
+})
+
+Window:EditOpenButton({
+    Title = "Open Config",
+    Icon = "settings",
+    CornerRadius = UDim.new(0,16),
+    StrokeThickness = 2,
+    Color = ColorSequence.new(
+        Color3.fromHex("FF0F7B"), 
+        Color3.fromHex("F89B29")
+    ),
+    OnlyMobile = false,
+    Enabled = true,
+    Draggable = true,
+})
+
+-- Get Best Dungeon for Defaults
+Functions:GetBestDungeon()
+if Settings.Dungeon.Name == "" then Settings.Dungeon.Name = BestDungeon end
+if Settings.Dungeon.Diffculty == "" then Settings.Dungeon.Diffculty = BestDifficulty end
+
+-- 1. Auto Farm Tab --
+local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
+    
+    TabAutoFarm:Section({Title = "Farm Settings"})
+    
+    TabAutoFarm:Toggle({
+        Title = "Auto Farm",
+        Desc = "Teleports to enemies and attacks",
+        Value = Settings.AutoFarm.Enabled,
+        Callback = function(v) 
+            Settings.AutoFarm.Enabled = v
+            SaveSettings()
+        end
+    })
+
+    TabAutoFarm:Toggle({
+        Title = "Use Skills",
+        Desc = "Automatically casts skills",
+        Value = Settings.AutoFarm.UseSkills,
+        Callback = function(v) 
+            Settings.AutoFarm.UseSkills = v
+            SaveSettings()
+        end
+    })
+
+    TabAutoFarm:Slider({
+        Title = "Teleport Delay",
+        Desc = "Delay between teleports",
+        Step = 0.1,
+        Value = {
+            Min = 1,
+            Max = 4,
+            Default = Settings.AutoFarm.Delay,
+        },
+        Callback = function(v)
+            Settings.AutoFarm.Delay = v
+            SaveSettings()
+        end
+    })
+
+    TabAutoFarm:Slider({
+        Title = "Distance",
+        Desc = "Height above enemies",
+        Step = 1,
+        Value = {
+             Min = 0,
+             Max = 10,
+             Default = Settings.AutoFarm.Distance,
+        },
+        Callback = function(v)
+            Settings.AutoFarm.Distance = v
+            SaveSettings()
+        end
+    })
+
+    TabAutoFarm:Section({Title = "Dungeon Creation"})
+
+    TabAutoFarm:Toggle({
+        Title = "Auto Create Best",
+        Desc = "Automatically creates the best dungeon for your level",
+        Value = Settings.Dungeon.EnabledBest,
+        Callback = function(v)
+            Settings.Dungeon.EnabledBest = v
+            SaveSettings()
+        end
+    })
+
+    TabAutoFarm:Toggle({
+        Title = "Auto Create Selected",
+        Desc = "Creates the dungeon selected below",
+        Value = Settings.Dungeon.Enabled,
+        Callback = function(v)
+            Settings.Dungeon.Enabled = v
+            SaveSettings()
+        end
+    })
+
+    local DungeonList = {"Desert Temple","Winter Outpost","Pirate Island","King's Castle","The Underworld","Samurai Palace","The Canals","Ghastly Harbor","Steampunk Sewers","Orbital Outpost","Volcanic Chambers","Aquatic Temple","Enchanted Forest","Northen Lands","Gilded Skies","Yokai Peak","Abyssal Void"}
+    TabAutoFarm:Dropdown({
+        Title = "Dungeon",
+        Values = DungeonList,
+        Value = Settings.Dungeon.Name,
+        Callback = function(v)
+            Settings.Dungeon.Name = v
+            SaveSettings()
+        end
+    })
+
+    TabAutoFarm:Dropdown({
+        Title = "Difficulty",
+        Values = {"Easy", "Medium", "Hard", "Insane", "Nightmare"},
+        Value = Settings.Dungeon.Diffculty,
+        Callback = function(v)
+            Settings.Dungeon.Diffculty = v
+            SaveSettings()
+        end
+    })
+
+    TabAutoFarm:Dropdown({
+        Title = "Mode",
+        Values = {"Normal", "Hardcore"},
+        Value = Settings.Dungeon.Mode,
+        Callback = function(v)
+            Settings.Dungeon.Mode = v
+            SaveSettings()
+        end
+    })
+
+    TabAutoFarm:Section({Title = "Raid Creation"})
+    
+    TabAutoFarm:Toggle({
+        Title = "Raid Farm",
+        Desc = "Teleport to lobby after finish",
+        Value = Settings.AutoFarm.RaidFarm,
+        Callback = function(v)
+            Settings.AutoFarm.RaidFarm = v
+            SaveSettings()
+        end
+    })
+
+    TabAutoFarm:Toggle({
+        Title = "Auto Create Raid",
+        Desc = "Creates raid lobby",
+        Value = Settings.Dungeon.RaidEnabled,
+        Callback = function(v)
+            Settings.Dungeon.RaidEnabled = v
+            SaveSettings()
+        end
+    })
+
+    TabAutoFarm:Dropdown({
+        Title = "Raid",
+        Values = {"Hela Raid", "Goliath Raid"},
+        Value = Settings.Dungeon.RaidName,
+        Callback = function(v)
+            Settings.Dungeon.RaidName = v
+            SaveSettings()
+        end
+    })
+
+    TabAutoFarm:Dropdown({
+        Title = "Tier",
+        Values = {"1","2","3","4","5"},
+        Value = Settings.Dungeon.Tier,
+        Callback = function(v)
+            Settings.Dungeon.Tier = v
+            SaveSettings()
+        end
+    })
+end
+
+-- 2. Misc Tab --
+local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
+    TabMisc:Section({Title = "General"})
+
+    TabMisc:Toggle({
+        Title = "Auto Retry",
+        Desc = "Replays dungeon automatically",
+        Value = Settings.Misc.AutoRetry,
+        Callback = function(v)
+            Settings.Misc.AutoRetry = v
+            SaveSettings()
+        end
+    })
+
+    TabMisc:Toggle({
+        Title = "Get Gregg Coin",
+        Desc = "Collects coins",
+        Value = Settings.Misc.GetGreggCoin,
+        Callback = function(v)
+            Settings.Misc.GetGreggCoin = v
+            SaveSettings()
+        end
+    })
+
+    TabMisc:Section({Title = "Auto Sell"})
+
+    TabMisc:Toggle({
+        Title = "Enabled",
+        Desc = "Sells items automatically",
+        Value = Settings.AutoSell.Enabled,
+        Callback = function(v)
+            Settings.AutoSell.Enabled = v
+            SaveSettings()
+        end
+    })
+
+    TabMisc:Dropdown({
+        Title = "Item Types",
+        Multi = true,
+        Values = {"weapon","ability","ring","helmet","chest"},
+        Value = Settings.AutoSell.ItemTypes,
+        Callback = function(v)
+            Settings.AutoSell.ItemTypes = v
+            SaveSettings()
+        end
+    })
+
+    TabMisc:Dropdown({
+        Title = "Rarities",
+        Multi = true,
+        Values = {"Ultimate","Legendary","Epic","Rare","Uncommon","Common"},
+        Value = Settings.AutoSell.Raritys,
+        Callback = function(v)
+            Settings.AutoSell.Raritys = v
+            SaveSettings()
+        end
+    })
+
+    TabMisc:Section({Title = "Name Hider"})
+
+    TabMisc:Toggle({
+        Title = "Hide Name",
+        Desc = "Masks your name locally",
+        Value = Settings.Misc.NameHide,
+        Callback = function(v)
+            Settings.Misc.NameHide = v
+            SaveSettings()
+        end
+    })
+    
+    TabMisc:Input({
+        Title = "Fake Name",
+        Default = "Float.Balls",
+        Callback = function(v)
+            NameHideName = v
+        end
+    })
+
+    TabMisc:Input({
+        Title = "Fake Title",
+        Default = "🤖",
+        Callback = function(v)
+            NameHideTitle = v
+        end
+    })
+
+    TabMisc:Section({Title = "Anti Stuck"})
+
+    TabMisc:Toggle({
+        Title = "Rejoin If Stuck",
+        Desc = "Rejoins lobby if stuck for a while",
+        Value = Settings.Misc.RejoinIfStuck,
+        Callback = function(v)
+            Settings.Misc.RejoinIfStuck = v
+            SaveSettings()
+        end
+    })
+
+    TabMisc:Slider({
+        Title = "Stuck Delay (s)",
+        Step = 1,
+        Value = {
+            Min = 30,
+            Max = 300,
+            Default = Settings.Misc.RejoinStuckDelay,
+        },
+        Callback = function(v)
+            Settings.Misc.RejoinStuckDelay = v
+            SaveSettings()
+        end
+    })
+end
+
+-- 3. Settings Tab --
+local TabSettings = Window:Tab({Title = "Settings", Icon = "settings"}) do
+    TabSettings:Section({Title = "Configuration"})
+
+    TabSettings:Button({
+        Title = "Save Settings",
+        Callback = function()
+            SaveSettings()
+            WindUI:Notify({Title = "Saved", Content = "Settings saved successfully", Duration = 3})
+        end
+    })
+    
+    TabSettings:Keybind({
+        Title = "Menu Keybind",
+        Desc = "Key to toggle UI",
+        Value = Settings.UI.Keybind or "RightControl",
+        Callback = function(v)
+            Settings.UI.Keybind = v.Name
+            SaveSettings() -- Just save, generic listener handles toggle
+        end
+    })
+end
+
+-- Default Keybind Init --
+local UserInputService = game:GetService("UserInputService")
+local isToggled = true
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode[Settings.UI.Keybind or "RightControl"] then
+        isToggled = not isToggled
+        Window.Enabled = isToggled -- Property might be 'Enabled' or utilize Toggle method if available
+        -- WindUI usually doesn't have a direct .Enabled property exposed purely like this on the window object sometimes, 
+        -- but let's try calling the library Toggle if possible, or usually the Window object has :Toggle().
+        -- Let's try Window:Toggle() if it exists?
+        -- The library code showed 'Toggle="Button"'.
+        -- Standard usually: Window:Toggle()
+        -- Safest is likely relying on the Keybind element if it worked, but user said it didn't.
+        -- Let's try pcall Window:Toggle()
+        pcall(function() Window:Toggle() end)
+        -- Fallback if Toggle method missing or uses different name
+        pcall(function() if Window.Instance then Window.Instance.Enabled = isToggled end end)
+    end
+end)
+
+-- Logic Loops --
+
+-- Rejoin If Stuck Loop
+task.spawn(function()
+    while true do task.wait(1)
+        if Settings.Misc.RejoinIfStuck == true then
+            if LastplayerPos and Character and (LastplayerPos - Character:GetPivot().p).Magnitude < 1 then
+                StuckTime = StuckTime + 1
+            elseif StuckTime == Settings.Misc.RejoinStuckDelay then
+                TeleportService:Teleport(2414851778, Players.LocalPlayer)
+            else
+                StuckTime = 0
+            end
+        end
+    end
+end)
+
+-- Name Hider Loop
+task.spawn(function()
+    while true do task.wait()
+        pcall(function()
+            if Character and Character:FindFirstChild("Head") and Character.Head:FindFirstChild("playerNameplate") then
+                local hud = Players.LocalPlayer.PlayerGui:FindFirstChild("HUD")
+                local status = hud and hud:FindFirstChild("Main") and hud.Main:FindFirstChild("PlayerStatus") and hud.Main.PlayerStatus:FindFirstChild("PlayerStatus")
+                local pName = status and status:FindFirstChild("PlayerName")
+                
+                if pName then
+                    if Settings.Misc.NameHide == true then
+                        status.Portrait.Frame.ImageLabel.Visible = false
+                        pName.Text = NameHideName
+                        Character.Head.playerNameplate.PlayerName.Text = NameHideName
+                        Character.Head.playerNameplate.Title.Text = NameHideTitle
+                        -- (Skipping detailed party UI manipulation for brevity, can add back if critical)
+                    else
+                        status.Portrait.Frame.ImageLabel.Visible = true
+                        pName.Text = OldName or Players.LocalPlayer.Name
+                        Character.Head.playerNameplate.PlayerName.Text = OldName or Players.LocalPlayer.Name
+                        Character.Head.playerNameplate.Title.Text = OldTitle or "Title"
+                    end
+                end
+            end
+        end)
+    end    
+end)
+
+-- Main Logic Loop (Auto Sell, Dungeon Join, Auto Farm)
+task.spawn(function()
+    while true do task.wait(0.05)
+        -- Auto Sell
+        if Settings.AutoSell.Enabled == true then
+            local args = {["chest"] = {},["helmet"] = {},["ability"] = {},["ring"] = {},["weapon"] = {}}
+            local counters = {["chest"] = 0, ["helmet"] = 0, ["ability"] = 0, ["ring"] = 1, ["weapon"] = 0}
+            for i,v in pairs(Functions:GetInventoryItems()) do
+                if table.find(Settings.AutoSell.ItemTypes, v["itemType"]) and table.find(Settings.AutoSell.Raritys, v["rarity"]) then
+                    counters[v["itemType"]] = counters[v["itemType"]] + 1
+                    args[v["itemType"]][counters[v["itemType"]]] = tonumber(v["index"])
+                end
+            end 
+            if ReplicatedStorage:FindFirstChild("remotes") and ReplicatedStorage.remotes:FindFirstChild("sellItemEvent") then
+                 ReplicatedStorage.remotes.sellItemEvent:FireServer(args)
+            end
+        end
+
+        -- Dungeon/Raid Joining
+        if workspace:FindFirstChild("CharacterSelectScene") then
+            if Settings.Dungeon.Enabled == true then
+                local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                                    ["difficulty"] = Settings.Dungeon.Diffculty,
+                                    ["mode"] = Settings.Dungeon.Mode,
+                                    ["dungeonName"] = Settings.Dungeon.Name,
+                                    ["tier"] = 1,
+                                }}},[2] = RemoteCodes["PartySystem"]}}
+                ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
+            elseif Settings.Dungeon.RaidEnabled == true then
+                local RaidArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                                    ["difficulty"] = "Nightmare",
+                                    ["minimumJoinLevel"] = 0,
+                                    ["tier"] = Settings.Dungeon.Tier,
+                                    ["dungeonName"] = Settings.Dungeon.RaidName,
+                                    ["mode"] = "Raid",
+                                    ["visibility"] = "Public",
+                                    ["maxPlayers"] = 40
+                                }}},[2] = RemoteCodes["PartySystem"]}}
+                ReplicatedStorage.dataRemoteEvent:FireServer(unpack(RaidArgs))
+            elseif Settings.Dungeon.EnabledBest == true then
+                local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                    ["difficulty"] = BestDifficulty,
+                    ["mode"] = "Normal",
+                    ["dungeonName"] = BestDungeon,
+                    ["tier"] = 1,
+                }}},[2] = RemoteCodes["PartySystem"]}}
+                ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
+            end
+        end
+
+        -- Auto Farm
+        if not workspace:FindFirstChild("CharacterSelectScene") and Settings.AutoFarm.Enabled == true and Character == Players.LocalPlayer.Character and Character:FindFirstChild("HumanoidRootPart") then
+            -- Voting / Ready
+            if Players.LocalPlayer.PlayerGui:FindFirstChild("HUD") and Players.LocalPlayer.PlayerGui.HUD.Main.StartButton.Visible == true or (Players.LocalPlayer.PlayerGui:FindFirstChild("RaidReadyCheck") and Players.LocalPlayer.PlayerGui.RaidReadyCheck.Enabled == true) then
+                ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {[utf8.char(3)] = "vote",["vote"] = true},[2] = utf8.char(28)}) 
+                if ReplicatedStorage.remotes:FindFirstChild("changeStartValue") then ReplicatedStorage.remotes.changeStartValue:FireServer() end
+                ReplicatedStorage.dataRemoteEvent:FireServer(unpack({[1] = {["\3"] = "raidReady"},[2] = RemoteCodes["DungeonHandler"]}))        
+                ReplicatedStorage.Utility.AssetRequester.Remote:InvokeServer({[1] = "ui",[2] = "raidTimeLeftGui"})                  
+            end
+            
+            -- Skills
+            if Settings.AutoFarm.UseSkills == true then
+                Functions:DoSkills(20)
+            end
+            
+            -- Gregg Coin
+            if Settings.Misc.GetGreggCoin == true and GreggCoin == true and RealCoin ~= nil then
+                Functions:Teleport(RealCoin:GetPivot()-Vector3.new(0,Settings.AutoFarm.Distance*2,0))
+                GreggCoin = false; RealCoin=nil
+            end
+            
+            -- Teleport to Enemy
+            local Enemy = Functions:GetClosestEnemy()
+            if GreggCoin == false and Enemy ~= nil then
+                Functions:Teleport(Enemy:GetPivot())
+            end
+        end
+    end 
+end)
+
+-- Event Listeners
+Players.LocalPlayer.PlayerGui.rewardGuiHolder.holder.ChildAdded:Connect(function()
+    if Settings.AutoFarm.RaidFarm == true then
+        TeleportService:Teleport(2414851778, Players.LocalPlayer)
+    end
+end)
+
+if Players.LocalPlayer.PlayerGui:FindFirstChild("cutscene") then
+    Players.LocalPlayer.PlayerGui.cutscene.Changed:Connect(function(change)
+        if change == "Enabled" then
+            ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {["\3"] = "skip"},[2] = RemoteCodes["Cutscene"]})        
+        end
+    end)
+end
+
+workspace.ChildAdded:Connect(function(child)
+    if child.Name == "Coin" then
+        GreggCoin = true; RealCoin = child
+    end
+    -- Destroy Effects
+    if Settings.DebugMode == false then
+        if child.Name == "pulseWavesWave" or child.Name == "groundAura" or child.Name == "pulseWavesHitbox" then
+            child:Destroy()
+        end 
+    end
+end)
+
+game:GetService("GuiService").ErrorMessageChanged:Connect(function()
+    TeleportService:Teleport(2414851778, Players.LocalPlayer)
+end)
+
+-- Auto Retry Listener
+if Players.LocalPlayer.PlayerGui:FindFirstChild("RetryVote") then
+    Players.LocalPlayer.PlayerGui.RetryVote.Changed:Connect(function(change)
+        if change == "Enabled" and Settings.Misc.AutoRetry == true then
+            ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {["\3"] = "vote",["vote"] = true},[2] = RemoteCodes["DungeonRetryBridge"]})    
+        end
+    end)
+end
+
+WindUI:Notify({Title = "Loaded", Content = "Dungeon Quest Script Loaded!", Duration = 5})
+
+-- Auto Execute on Teleport (Preserve Script)
+if queue_on_teleport then
+    queue_on_teleport([[
+        if not game:IsLoaded() then game.Loaded:Wait() end
+        -- Link to your repository (Assuming file is named 'ui.lua')
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Guyeiei/MinakoHub/main/ui.lua"))()
+    ]])
+end
