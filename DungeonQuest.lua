@@ -102,37 +102,7 @@ function Functions:GetInventoryItems()
     if inventory then
         for i,v in pairs(inventory:GetChildren()) do
             if v:IsA("ImageLabel") and v:FindFirstChild("itemType") and v.itemType:FindFirstChild("uniqueItemNum") then
-                local isEquipped = false
-                -- Check for equipped indicator (Commonly a TextLabel saying 'Equipped' or a checkmark)
-                if v:FindFirstChild("equipped") or v:FindFirstChild("Equipped") then
-                    isEquipped = true
-                -- Fallback: Check if there is a 'Checkmark' image or similar
-                elseif v:FindFirstChild("Checkmark") and v.Checkmark.Visible then
-                    isEquipped = true
-                end
-
-                -- Attempt to capture Item Data for Auto Equip
-                -- The remote requires the full 'data' table. 
-                -- We check if 'data' exists as a child (RemoteEvent/Value).
-                local rawData = nil
-                local dataVal = v:FindFirstChild("data")
-                if dataVal then
-                    -- If it's a StringValue, it might be JSON. If it's a Module, we can't require it easily if not public.
-                    -- But often in these games, 'data' is a Value associated with the frame.
-                    -- We'll try to access it if it's a Value.
-                    if dataVal:IsA("StringValue") then
-                        pcall(function() rawData = HttpService:JSONDecode(dataVal.Value) end)
-                    end
-                end
-                
-                local Item = {
-                    ["index"]=v:FindFirstChild("itemType"):FindFirstChild("uniqueItemNum").Value,
-                    ["rarity"]="",
-                    ["itemType"]=v:FindFirstChild("itemType").Value,
-                    ["equipped"]=isEquipped,
-                    ["data"] = rawData,
-                    ["obj"] = v
-                }
+                local Item = {["index"]=v:FindFirstChild("itemType"):FindFirstChild("uniqueItemNum").Value,["rarity"]="";["itemType"]=v:FindFirstChild("itemType").Value}
                 for i2,v2 in pairs(Raritys) do
                     if v.ImageColor3 == v2 then
                         Item["rarity"] = i2
@@ -144,7 +114,6 @@ function Functions:GetInventoryItems()
     end
     return tbl
 end
-
 
 function Functions:DoSkills(RepeatCount)
     if not Players.LocalPlayer.Backpack then return end
@@ -743,11 +712,9 @@ task.spawn(function()
             local args = {["chest"] = {},["helmet"] = {},["ability"] = {},["ring"] = {},["weapon"] = {}}
             local counters = {["chest"] = 0, ["helmet"] = 0, ["ability"] = 0, ["ring"] = 1, ["weapon"] = 0}
             for i,v in pairs(Functions:GetInventoryItems()) do
-                if not v.equipped then -- Check Equipped
-                    if table.find(Settings.AutoSell.ItemTypes, v["itemType"]) and table.find(Settings.AutoSell.Raritys, v["rarity"]) then
-                        counters[v["itemType"]] = counters[v["itemType"]] + 1
-                        args[v["itemType"]][counters[v["itemType"]]] = tonumber(v["index"])
-                    end
+                if table.find(Settings.AutoSell.ItemTypes, v["itemType"]) and table.find(Settings.AutoSell.Raritys, v["rarity"]) then
+                    counters[v["itemType"]] = counters[v["itemType"]] + 1
+                    args[v["itemType"]][counters[v["itemType"]]] = tonumber(v["index"])
                 end
             end 
             if ReplicatedStorage:FindFirstChild("remotes") and ReplicatedStorage.remotes:FindFirstChild("sellItemEvent") then
