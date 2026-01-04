@@ -26,7 +26,7 @@ local Settings = {
     AutoFarm = {Enabled = false, Delay = 2, Distance = 6, UseSkills = false, RaidFarm = false},
     Dungeon = {Enabled = false, EnabledBest = false, Name = "", Diffculty = "", Mode = "Normal", RaidEnabled = false, RaidName = "", Tier = "1"},
     AutoSell = {Enabled = false, Raritys = {}, ItemTypes = {}},
-    Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120, RemovePulseVisuals = true},
+    Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120, RemovePulseVisuals = true, SkillDelay = 0.05},
     DebugMode = false,
     UI = {Keybind = "RightControl"}
 }
@@ -462,6 +462,23 @@ end
 
 -- 2. Misc Tab --
 local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
+    TabMisc:Section({Title = "Spam Settings"})
+
+    TabMisc:Slider({
+        Title = "Skill Spam Delay",
+        Desc = "Delay for skill usage (Lower = Faster)",
+        Step = 0.01,
+        Value = {
+            Min = 0.01,
+            Max = 0.5,
+            Default = Settings.Misc.SkillDelay,
+        },
+        Callback = function(v)
+            Settings.Misc.SkillDelay = v
+            SaveSettings()
+        end
+    })
+
     TabMisc:Section({Title = "General"})
 
     TabMisc:Toggle({
@@ -678,7 +695,7 @@ end)
 local JoinDebounce = false
 -- Main Logic Loop (Auto Sell, Dungeon Join, Auto Farm)
 task.spawn(function()
-    while true do task.wait(0.05)
+    while true do task.wait(Settings.Misc.SkillDelay or 0.05)
         -- Auto Sell
         if Settings.AutoSell.Enabled == true then
             local args = {["chest"] = {},["helmet"] = {},["ability"] = {},["ring"] = {},["weapon"] = {}}
@@ -835,6 +852,9 @@ WindUI:Notify({Title = "Loaded", Content = "Dungeon Quest Script Loaded!", Durat
 if queue_on_teleport then
     queue_on_teleport([[
         if not game:IsLoaded() then game.Loaded:Wait() end
+        repeat task.wait() until game:GetService("Players").LocalPlayer
+        repeat task.wait() until game:GetService("Players").LocalPlayer.PlayerGui
+        task.wait(3) -- Safety wait for client stability
         -- Link to your repository (Assuming file is named 'DungeonQuest.lua')
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Guyeiei/MinakoHub/main/DungeonQuest.lua"))()
     ]])
