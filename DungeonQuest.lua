@@ -797,6 +797,12 @@ end)
 
 
 
+-- Auto Kick/Error Recovery
+game:GetService("GuiService").ErrorMessageChanged:Connect(function()
+    -- Attempt to teleport back to lobby immediately upon any error/kick message
+    TeleportService:Teleport(2414851778, Players.LocalPlayer)
+end)
+
 -- Auto Retry Listener (Robust w/ Click Fallback)
 task.spawn(function()
     local retryUI = Players.LocalPlayer.PlayerGui:WaitForChild("RetryVote", 9999) 
