@@ -26,7 +26,7 @@ local Settings = {
     AutoFarm = {Enabled = false, Delay = 2, Distance = 6, UseSkills = false, RaidFarm = false},
     Dungeon = {Enabled = false, EnabledBest = false, Name = "", Diffculty = "", Mode = "Normal", RaidEnabled = false, RaidName = "", Tier = "1"},
     AutoSell = {Enabled = false, Raritys = {}, ItemTypes = {}},
-    Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120},
+    Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120, RemovePulseVisuals = true},
     DebugMode = false,
     UI = {Keybind = "RightControl"}
 }
@@ -571,6 +571,18 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
             SaveSettings()
         end
     })
+
+    TabMisc:Section({Title = "Visual Settings"})
+
+    TabMisc:Toggle({
+        Title = "Remove Pulse Visuals",
+        Desc = "Deletes waves, auras, and hitboxes",
+        Value = Settings.Misc.RemovePulseVisuals,
+        Callback = function(v)
+            Settings.Misc.RemovePulseVisuals = v
+            SaveSettings()
+        end
+    })
 end
 
 -- 3. Settings Tab --
@@ -663,6 +675,7 @@ task.spawn(function()
     end    
 end)
 
+local JoinDebounce = false
 -- Main Logic Loop (Auto Sell, Dungeon Join, Auto Farm)
 task.spawn(function()
     while true do task.wait(0.05)
@@ -683,34 +696,46 @@ task.spawn(function()
 
         -- Dungeon/Raid Joining
         if workspace:FindFirstChild("CharacterSelectScene") then
-            if Settings.Dungeon.Enabled == true then
-                local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
-                                    ["difficulty"] = Settings.Dungeon.Diffculty,
-                                    ["mode"] = Settings.Dungeon.Mode,
-                                    ["dungeonName"] = Settings.Dungeon.Name,
-                                    ["tier"] = 1,
-                                }}},[2] = RemoteCodes["PartySystem"]}}
-                ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
-            elseif Settings.Dungeon.RaidEnabled == true then
-                local RaidArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
-                                    ["difficulty"] = "Nightmare",
-                                    ["minimumJoinLevel"] = 0,
-                                    ["tier"] = Settings.Dungeon.Tier,
-                                    ["dungeonName"] = Settings.Dungeon.RaidName,
-                                    ["mode"] = "Raid",
-                                    ["visibility"] = "Public",
-                                    ["maxPlayers"] = 40
-                                }}},[2] = RemoteCodes["PartySystem"]}}
-                ReplicatedStorage.dataRemoteEvent:FireServer(unpack(RaidArgs))
-            elseif Settings.Dungeon.EnabledBest == true then
-                local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
-                    ["difficulty"] = BestDifficulty,
-                    ["mode"] = "Normal",
-                    ["dungeonName"] = BestDungeon,
-                    ["tier"] = 1,
-                }}},[2] = RemoteCodes["PartySystem"]}}
-                ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
+            if not JoinDebounce then
+                if Settings.Dungeon.Enabled == true then
+                    JoinDebounce = true
+                    local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                                        ["difficulty"] = Settings.Dungeon.Diffculty,
+                                        ["mode"] = Settings.Dungeon.Mode,
+                                        ["dungeonName"] = Settings.Dungeon.Name,
+                                        ["tier"] = 1,
+                                    }}},[2] = RemoteCodes["PartySystem"]}}
+                    ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
+                    task.delay(10, function() JoinDebounce = false end)
+                    
+                elseif Settings.Dungeon.RaidEnabled == true then
+                    JoinDebounce = true
+                    local RaidArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                                        ["difficulty"] = "Nightmare",
+                                        ["minimumJoinLevel"] = 0,
+                                        ["tier"] = Settings.Dungeon.Tier,
+                                        ["dungeonName"] = Settings.Dungeon.RaidName,
+                                        ["mode"] = "Raid",
+                                        ["visibility"] = "Public",
+                                        ["maxPlayers"] = 40
+                                    }}},[2] = RemoteCodes["PartySystem"]}}
+                    ReplicatedStorage.dataRemoteEvent:FireServer(unpack(RaidArgs))
+                    task.delay(10, function() JoinDebounce = false end)
+
+                elseif Settings.Dungeon.EnabledBest == true then
+                    JoinDebounce = true
+                    local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                        ["difficulty"] = BestDifficulty,
+                        ["mode"] = "Normal",
+                        ["dungeonName"] = BestDungeon,
+                        ["tier"] = 1,
+                    }}},[2] = RemoteCodes["PartySystem"]}}
+                    ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
+                    task.delay(10, function() JoinDebounce = false end)
+                end
             end
+        else
+            JoinDebounce = false -- Reset if not in lobby
         end
 
         -- Auto Farm
@@ -762,10 +787,10 @@ workspace.ChildAdded:Connect(function(child)
     if child.Name == "Coin" then
         GreggCoin = true; RealCoin = child
     end
-    -- Destroy Effects
-    if Settings.DebugMode == false then
+    -- Destroy Effects (Visual Optimization)
+    if Settings.Misc.RemovePulseVisuals == true then
         if child.Name == "pulseWavesWave" or child.Name == "groundAura" or child.Name == "pulseWavesHitbox" then
-            child:Destroy()
+            task.delay(0, function() child:Destroy() end)
         end 
     end
 end)
