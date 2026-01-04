@@ -162,9 +162,20 @@ function Functions:Teleport(Cframe)
     
     repeat task.wait()
         if Character:FindFirstChild("HumanoidRootPart") and bodyPosition and bodyGyro then
-            Character:PivotTo(CFrame.new(Cframe.p + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0))* CFrame.Angles(math.rad(90), 0, 0))
-            bodyPosition.Position = Cframe.Position + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0)
-            bodyGyro.CFrame = CFrame.new(Character:GetPivot().p, Cframe.Position) * CFrame.Angles(math.rad(90), 0, 0)
+            local targetPos = Cframe.Position
+            local myPos = Cframe.p + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0)
+            -- Look at enemy
+            local lookCFrame = CFrame.lookAt(myPos, targetPos)
+            -- Apply rotation: User requested 'Face Down' (prone). 
+            -- Standard LookAt from above makes character 'stand' looking down. 
+            -- Adding -90 deg pitch (math.rad(-90)) relative to camera often makes it look 'down' more aggressively or rotates the body to be horizontal.
+            -- However, usually CFrame.lookAt is sufficient for skills. 
+            -- If user saw 'ceiling' with 90, 0 is likely correct for 'looking at enemy'.
+            -- But to be 'Prone' (horizontal body), we need a specific rotation.
+            -- Let's use -90 degrees on X axis which rotates "Top" to "Front".
+            Character:PivotTo(lookCFrame * CFrame.Angles(math.rad(-90), 0, 0))
+            bodyPosition.Position = myPos
+            bodyGyro.CFrame = lookCFrame * CFrame.Angles(math.rad(-90), 0, 0)
         end
     until tick() - oldTime >= Settings.AutoFarm.Delay or not Character:FindFirstChild("HumanoidRootPart")
     
@@ -851,11 +862,14 @@ WindUI:Notify({Title = "Loaded", Content = "Dungeon Quest Script Loaded!", Durat
 -- Auto Execute on Teleport (Preserve Script)
 if queue_on_teleport then
     queue_on_teleport([[
-        if not game:IsLoaded() then game.Loaded:Wait() end
+        repeat task.wait() until game:IsLoaded()
         repeat task.wait() until game:GetService("Players").LocalPlayer
         repeat task.wait() until game:GetService("Players").LocalPlayer.PlayerGui
-        task.wait(3) -- Safety wait for client stability
-        -- Link to your repository (Assuming file is named 'DungeonQuest.lua')
+        
+        -- Minimal safety wait (0.5s) to ensure remote listeners are ready
+        task.wait(0.5) 
+        
+        -- Link to your repository
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Guyeiei/MinakoHub/main/DungeonQuest.lua"))()
     ]])
 end
