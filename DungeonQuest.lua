@@ -26,7 +26,7 @@ local Settings = {
     AutoFarm = {Enabled = false, Delay = 2, Distance = 6, UseSkills = false, RaidFarm = false},
     Dungeon = {Enabled = false, EnabledBest = false, Name = "", Diffculty = "", Mode = "Normal", RaidEnabled = false, RaidName = "", Tier = "1"},
     AutoSell = {Enabled = false, Raritys = {}, ItemTypes = {}},
-    Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120, RemovePulseVisuals = true, SkillDelay = 0.05},
+    Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120},
     DebugMode = false,
     UI = {Keybind = "RightControl"}
 }
@@ -162,20 +162,9 @@ function Functions:Teleport(Cframe)
     
     repeat task.wait()
         if Character:FindFirstChild("HumanoidRootPart") and bodyPosition and bodyGyro then
-            local targetPos = Cframe.Position
-            local myPos = Cframe.p + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0)
-            -- Look at enemy
-            local lookCFrame = CFrame.lookAt(myPos, targetPos)
-            -- Apply rotation: User requested 'Face Down' (prone). 
-            -- Standard LookAt from above makes character 'stand' looking down. 
-            -- Adding -90 deg pitch (math.rad(-90)) relative to camera often makes it look 'down' more aggressively or rotates the body to be horizontal.
-            -- However, usually CFrame.lookAt is sufficient for skills. 
-            -- If user saw 'ceiling' with 90, 0 is likely correct for 'looking at enemy'.
-            -- But to be 'Prone' (horizontal body), we need a specific rotation.
-            -- Let's use -90 degrees on X axis which rotates "Top" to "Front".
-            Character:PivotTo(lookCFrame * CFrame.Angles(math.rad(-90), 0, 0))
-            bodyPosition.Position = myPos
-            bodyGyro.CFrame = lookCFrame * CFrame.Angles(math.rad(-90), 0, 0)
+            Character:PivotTo(CFrame.new(Cframe.p + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0))* CFrame.Angles(math.rad(90), 0, 0))
+            bodyPosition.Position = Cframe.Position + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0)
+            bodyGyro.CFrame = CFrame.new(Character:GetPivot().p, Cframe.Position) * CFrame.Angles(math.rad(90), 0, 0)
         end
     until tick() - oldTime >= Settings.AutoFarm.Delay or not Character:FindFirstChild("HumanoidRootPart")
     
@@ -293,30 +282,17 @@ Window:EditOpenButton({
     Draggable = true,
 })
 
--- Initialize Dropdown Variables
-local DungeonDropdown, DifficultyDropdown
-
--- Safe Defaults to prevent Blank UI
-if Settings.Dungeon.Name == "" or Settings.Dungeon.Name == "nil" then Settings.Dungeon.Name = "Desert Temple" end
-if Settings.Dungeon.Diffculty == "" then Settings.Dungeon.Diffculty = "Easy" end
-
--- Get Best Dungeon for Defaults (Async Update)
+-- Get Best Dungeon for Defaults
+-- Get Best Dungeon for Defaults (Non-blocking)
 task.spawn(function()
     pcall(function()
         if not Players.LocalPlayer:FindFirstChild("leaderstats") then
-            Players.LocalPlayer:WaitForChild("leaderstats", 10)
+            Players.LocalPlayer:WaitForChild("leaderstats", 5)
         end
         Functions:GetBestDungeon()
-        
-        -- Update UI if discovered better dungeon
-        if BestDungeon and BestDungeon ~= "nil" then
-             if DungeonDropdown and DungeonDropdown.Set then DungeonDropdown:Set(BestDungeon) end
-             Settings.Dungeon.Name = BestDungeon
-        end
-        if BestDifficulty then
-             if DifficultyDropdown and DifficultyDropdown.Set then DifficultyDropdown:Set(BestDifficulty) end
-             Settings.Dungeon.Diffculty = BestDifficulty
-        end
+        -- Update Settings if defaults are empty
+        if Settings.Dungeon.Name == "" then Settings.Dungeon.Name = BestDungeon end
+        if Settings.Dungeon.Diffculty == "" then Settings.Dungeon.Diffculty = BestDifficulty end
     end)
 end)
 
@@ -398,7 +374,7 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
     })
 
     local DungeonList = {"Desert Temple","Winter Outpost","Pirate Island","King's Castle","The Underworld","Samurai Palace","The Canals","Ghastly Harbor","Steampunk Sewers","Orbital Outpost","Volcanic Chambers","Aquatic Temple","Enchanted Forest","Northen Lands","Gilded Skies","Yokai Peak","Abyssal Void"}
-    DungeonDropdown = TabAutoFarm:Dropdown({
+    TabAutoFarm:Dropdown({
         Title = "Dungeon",
         Values = DungeonList,
         Value = Settings.Dungeon.Name,
@@ -408,7 +384,7 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
         end
     })
 
-    DifficultyDropdown = TabAutoFarm:Dropdown({
+    TabAutoFarm:Dropdown({
         Title = "Difficulty",
         Values = {"Easy", "Medium", "Hard", "Insane", "Nightmare"},
         Value = Settings.Dungeon.Diffculty,
@@ -473,23 +449,6 @@ end
 
 -- 2. Misc Tab --
 local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
-    TabMisc:Section({Title = "Spam Settings"})
-
-    TabMisc:Slider({
-        Title = "Skill Spam Delay",
-        Desc = "Delay for skill usage (Lower = Faster)",
-        Step = 0.01,
-        Value = {
-            Min = 0.01,
-            Max = 0.5,
-            Default = Settings.Misc.SkillDelay,
-        },
-        Callback = function(v)
-            Settings.Misc.SkillDelay = v
-            SaveSettings()
-        end
-    })
-
     TabMisc:Section({Title = "General"})
 
     TabMisc:Toggle({
@@ -599,18 +558,6 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
             SaveSettings()
         end
     })
-
-    TabMisc:Section({Title = "Visual Settings"})
-
-    TabMisc:Toggle({
-        Title = "Remove Pulse Visuals",
-        Desc = "Deletes waves, auras, and hitboxes",
-        Value = Settings.Misc.RemovePulseVisuals,
-        Callback = function(v)
-            Settings.Misc.RemovePulseVisuals = v
-            SaveSettings()
-        end
-    })
 end
 
 -- 3. Settings Tab --
@@ -703,10 +650,9 @@ task.spawn(function()
     end    
 end)
 
-local JoinDebounce = false
 -- Main Logic Loop (Auto Sell, Dungeon Join, Auto Farm)
 task.spawn(function()
-    while true do task.wait(Settings.Misc.SkillDelay or 0.05)
+    while true do task.wait(0.05)
         -- Auto Sell
         if Settings.AutoSell.Enabled == true then
             local args = {["chest"] = {},["helmet"] = {},["ability"] = {},["ring"] = {},["weapon"] = {}}
@@ -724,46 +670,34 @@ task.spawn(function()
 
         -- Dungeon/Raid Joining
         if workspace:FindFirstChild("CharacterSelectScene") then
-            if not JoinDebounce then
-                if Settings.Dungeon.Enabled == true then
-                    JoinDebounce = true
-                    local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
-                                        ["difficulty"] = Settings.Dungeon.Diffculty,
-                                        ["mode"] = Settings.Dungeon.Mode,
-                                        ["dungeonName"] = Settings.Dungeon.Name,
-                                        ["tier"] = 1,
-                                    }}},[2] = RemoteCodes["PartySystem"]}}
-                    ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
-                    task.delay(10, function() JoinDebounce = false end)
-                    
-                elseif Settings.Dungeon.RaidEnabled == true then
-                    JoinDebounce = true
-                    local RaidArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
-                                        ["difficulty"] = "Nightmare",
-                                        ["minimumJoinLevel"] = 0,
-                                        ["tier"] = Settings.Dungeon.Tier,
-                                        ["dungeonName"] = Settings.Dungeon.RaidName,
-                                        ["mode"] = "Raid",
-                                        ["visibility"] = "Public",
-                                        ["maxPlayers"] = 40
-                                    }}},[2] = RemoteCodes["PartySystem"]}}
-                    ReplicatedStorage.dataRemoteEvent:FireServer(unpack(RaidArgs))
-                    task.delay(10, function() JoinDebounce = false end)
-
-                elseif Settings.Dungeon.EnabledBest == true then
-                    JoinDebounce = true
-                    local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
-                        ["difficulty"] = BestDifficulty,
-                        ["mode"] = "Normal",
-                        ["dungeonName"] = BestDungeon,
-                        ["tier"] = 1,
-                    }}},[2] = RemoteCodes["PartySystem"]}}
-                    ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
-                    task.delay(10, function() JoinDebounce = false end)
-                end
+            if Settings.Dungeon.Enabled == true then
+                local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                                    ["difficulty"] = Settings.Dungeon.Diffculty,
+                                    ["mode"] = Settings.Dungeon.Mode,
+                                    ["dungeonName"] = Settings.Dungeon.Name,
+                                    ["tier"] = 1,
+                                }}},[2] = RemoteCodes["PartySystem"]}}
+                ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
+            elseif Settings.Dungeon.RaidEnabled == true then
+                local RaidArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                                    ["difficulty"] = "Nightmare",
+                                    ["minimumJoinLevel"] = 0,
+                                    ["tier"] = Settings.Dungeon.Tier,
+                                    ["dungeonName"] = Settings.Dungeon.RaidName,
+                                    ["mode"] = "Raid",
+                                    ["visibility"] = "Public",
+                                    ["maxPlayers"] = 40
+                                }}},[2] = RemoteCodes["PartySystem"]}}
+                ReplicatedStorage.dataRemoteEvent:FireServer(unpack(RaidArgs))
+            elseif Settings.Dungeon.EnabledBest == true then
+                local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                    ["difficulty"] = BestDifficulty,
+                    ["mode"] = "Normal",
+                    ["dungeonName"] = BestDungeon,
+                    ["tier"] = 1,
+                }}},[2] = RemoteCodes["PartySystem"]}}
+                ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
             end
-        else
-            JoinDebounce = false -- Reset if not in lobby
         end
 
         -- Auto Farm
@@ -815,43 +749,23 @@ workspace.ChildAdded:Connect(function(child)
     if child.Name == "Coin" then
         GreggCoin = true; RealCoin = child
     end
-    -- Destroy Effects (Visual Optimization)
-    if Settings.Misc.RemovePulseVisuals == true then
+    -- Destroy Effects
+    if Settings.DebugMode == false then
         if child.Name == "pulseWavesWave" or child.Name == "groundAura" or child.Name == "pulseWavesHitbox" then
-            task.delay(0, function() child:Destroy() end)
+            child:Destroy()
         end 
     end
 end)
 
 
 
--- Auto Kick/Error Recovery
-game:GetService("GuiService").ErrorMessageChanged:Connect(function()
-    -- Attempt to teleport back to lobby immediately upon any error/kick message
-    TeleportService:Teleport(2414851778, Players.LocalPlayer)
-end)
-
--- Auto Retry Listener (Robust w/ Click Fallback)
+-- Auto Retry Listener (Robust)
 task.spawn(function()
-    local retryUI = Players.LocalPlayer.PlayerGui:WaitForChild("RetryVote", 9999) 
+    local retryUI = Players.LocalPlayer.PlayerGui:WaitForChild("RetryVote", 9999) -- Wait indefinitely or long time
     if retryUI then
         retryUI.Changed:Connect(function(change)
             if change == "Enabled" and Settings.Misc.AutoRetry == true then
-                -- 1. Fire Remote
                 ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {["\3"] = "vote",["vote"] = true},[2] = RemoteCodes["DungeonRetryBridge"]})    
-                
-                -- 2. Click Button (Fallback)
-                task.delay(0.5, function()
-                    local btn = retryUI:FindFirstChild("Frame") and retryUI.Frame:FindFirstChild("Retry")
-                    if btn and btn.Visible then
-                         local vim = game:GetService("VirtualInputManager")
-                         local x = btn.AbsolutePosition.X + (btn.AbsoluteSize.X / 2)
-                         local y = btn.AbsolutePosition.Y + (btn.AbsoluteSize.Y / 2)
-                         vim:SendMouseButtonEvent(x, y, 0, true, game, 1)
-                         task.wait(0.05)
-                         vim:SendMouseButtonEvent(x, y, 0, false, game, 1)
-                    end
-                end)
             end
         end)
     end
@@ -862,14 +776,8 @@ WindUI:Notify({Title = "Loaded", Content = "Dungeon Quest Script Loaded!", Durat
 -- Auto Execute on Teleport (Preserve Script)
 if queue_on_teleport then
     queue_on_teleport([[
-        repeat task.wait() until game:IsLoaded()
-        repeat task.wait() until game:GetService("Players").LocalPlayer
-        repeat task.wait() until game:GetService("Players").LocalPlayer.PlayerGui
-        
-        -- Minimal safety wait (0.5s) to ensure remote listeners are ready
-        task.wait(0.5) 
-        
-        -- Link to your repository
+        if not game:IsLoaded() then game.Loaded:Wait() end
+        -- Link to your repository (Assuming file is named 'DungeonQuest.lua')
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Guyeiei/MinakoHub/main/DungeonQuest.lua"))()
     ]])
 end
