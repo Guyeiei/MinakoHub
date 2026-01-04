@@ -280,14 +280,25 @@ function Functions:GetBestDungeon()
     end
 end
 
--- Initialize Remotes
-if getupvalue ~= nil then
-    repeat task.wait() until ReplicatedStorage:FindFirstChild("Utility") and ReplicatedStorage.Utility:FindFirstChild("BridgeNet2") and ReplicatedStorage.Utility.BridgeNet2:FindFirstChild("Client") and ReplicatedStorage.Utility.BridgeNet2.Client:FindFirstChild("ClientIdentifiers")
-    RemoteModule = require(ReplicatedStorage.Utility.BridgeNet2.Client.ClientIdentifiers)
-    for i,v in pairs(getupvalue(RemoteModule["deser"],2)) do
-        RemoteCodes[v] = i
+-- Initialize Remotes (Async to prevent blocking UI)
+task.spawn(function()
+    if getupvalue ~= nil then
+        -- Add timeout of 10 seconds
+        local start = tick()
+        repeat task.wait() until (ReplicatedStorage:FindFirstChild("Utility") and ReplicatedStorage.Utility:FindFirstChild("BridgeNet2")) or (tick() - start > 10)
+        
+        if ReplicatedStorage:FindFirstChild("Utility") then
+             pcall(function()
+                local RemoteModule = require(ReplicatedStorage.Utility.BridgeNet2.Client.ClientIdentifiers)
+                for i,v in pairs(getupvalue(RemoteModule["deser"],2)) do
+                    RemoteCodes[v] = i
+                end
+             end)
+        end
     end
-else
+end)
+
+if not next(RemoteCodes) then
     RemoteCodes={["DungeonRetryBridge"]="/",["CharacterSelection"]="M",["PartySystem"]="d",["Cutscene"]="\184",["Intro"]="5",["DungeonHandler"]=";",["Abilities"]="G"}
 end
 
@@ -504,7 +515,7 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
 end
 
 -- 1.5 Status Tab
-local TabStatus = Window:Tab({Title = "Status", Icon = "align-end-horizontal"}) do
+local TabStatus = Window:Tab({Title = "Status", Icon = "bar-chart-2"}) do
     TabStatus:Section({Title = "Auto Upgrade Stats"})
     
     TabStatus:Toggle({
