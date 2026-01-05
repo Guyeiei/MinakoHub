@@ -751,30 +751,7 @@ task.spawn(function()
     end    
 end)
 
--- NEW: Return to Lobby Soft-Kick Recovery
-task.spawn(function()
-    local function FindBtn(parent, name) 
-        -- Recursive Search for Button matches by Name OR Text
-        local function scan(obj)
-            for _, child in pairs(obj:GetChildren()) do
-                if child:IsA("GuiButton") then
-                    if child.Name == name then return child end
-                    if child:IsA("TextButton") and string.find(string.lower(child.Text), string.lower(name)) then return child end
-                    if child:IsA("ImageButton") then
-                        for _, desc in pairs(child:GetDescendants()) do
-                             if desc:IsA("TextLabel") and string.find(string.lower(desc.Text), string.lower(name)) then return child end
-                        end
-                    end
-                end
-                local res = scan(child)
-                if res then return res end
-            end
-        end
-        local success, btn = pcall(function() return scan(parent) end)
-        return (success and btn and btn.Visible) and btn or nil
-    end
 
--- NEW: Return to Lobby Soft-Kick Recovery
 task.spawn(function()
     local function FindBtn(parent, name) 
         -- Recursive Search for Button matches by Name OR Text
