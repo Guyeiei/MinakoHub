@@ -56,7 +56,7 @@ local Settings = {
     AutoFarm = {Enabled = false, Delay = 2, Distance = 6, UseSkills = false, RaidFarm = false},
     Dungeon = {Enabled = false, EnabledBest = false, Name = "", Diffculty = "", Mode = "Normal", RaidEnabled = false, RaidName = "", Tier = "1"},
     AutoSell = {Enabled = false, Raritys = {}, ItemTypes = {}},
-    Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120, RemovePulseVisuals = true, SkillDelay = 0.1}, -- Increased Default Delay for Safety
+    Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120, RemovePulseVisuals = true, SkillDelay = 0.1}, 
     DebugMode = false,
     UI = {Keybind = "RightControl"}
 }
@@ -157,18 +157,19 @@ function Functions:GetInventoryItems()
     return tbl
 end
 
--- FIXED: Optimized DoSkills to prevent crash
-function Functions:DoSkills()
+-- FIXED: Restored 10x Spam Loop as requested
+function Functions:DoSkills(RepeatCount)
     if not Players.LocalPlayer.Backpack then return end
     for i, v in pairs(Players.LocalPlayer.Backpack:GetChildren()) do
-        -- Removed Inner Loop (20x) -> Now fires 1x per tick (Fast enough!)
-        task.spawn(function()
-            if v:FindFirstChild("cooldown") and v.cooldown.Value and (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")) then
-                (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")):FireServer()
-            elseif v:FindFirstChild("cooldown") and v.cooldown.Value then
-                ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {["\t"] = v},[2] = RemoteCodes["Abilities"]})
-            end
-        end)
+        for k = 1, (RepeatCount or 1) do -- Loop 10 times
+            task.spawn(function()
+                if v:FindFirstChild("cooldown") and v.cooldown.Value and (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")) then
+                    (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")):FireServer()
+                elseif v:FindFirstChild("cooldown") and v.cooldown.Value then
+                    ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {["\t"] = v},[2] = RemoteCodes["Abilities"]})
+                end
+            end)
+        end
     end
 end
 
@@ -904,7 +905,7 @@ task.spawn(function()
             if Character and Character:FindFirstChild("HumanoidRootPart") then
                 -- Skills
                 if Settings.AutoFarm.UseSkills == true then
-                    Functions:DoSkills(20) -- Argument ignored now in simplified func
+                    Functions:DoSkills(10) -- RESTORED 10x HERE
                 end
                 
                 -- Gregg Coin
