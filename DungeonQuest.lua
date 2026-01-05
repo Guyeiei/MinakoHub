@@ -1,21 +1,3 @@
--- Dungeon Quest Script (Auto-Execute Friendly)
--- Updated for Stability & Persistence
-
--- 1. CLEANUP & SINGLETON CHECK --
-if getgenv().DQ_Connections then
-    for _, conn in pairs(getgenv().DQ_Connections) do
-        if conn then conn:Disconnect() end
-    end
-end
-if getgenv().DQ_UI and getgenv().DQ_UI.Window then
-    -- Attempt to close old window
-    pcall(function() getgenv().DQ_UI.Window:Destroy() end) 
-end
-
--- Reset State
-getgenv().DQ_Connections = {}
-getgenv().DQ_Running = true 
-
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 -- Variable Setup --
@@ -83,11 +65,6 @@ local Raritys = {
 
 local RemoteCodes = {}
 
--- Helper: Add Connection
-local function AddConn(signal)
-    table.insert(getgenv().DQ_Connections, signal)
-end
-
 -- Functions --
 
 local function SaveSettings()
@@ -115,10 +92,10 @@ LoadSettings() -- Load on start
 
 local Functions = {}
 
-AddConn(Players.LocalPlayer.CharacterAdded:Connect(function(char)
+Players.LocalPlayer.CharacterAdded:Connect(function(char)
     Character = char
     repeat task.wait() until Character:FindFirstChild("HumanoidRootPart")
-end))
+end)
 
 function Functions:GetInventoryItems()
     local tbl = {}
@@ -308,9 +285,6 @@ local Window = WindUI:CreateWindow({
     Icon = "door-open",
     Author = "by Minako",
 })
-
--- Store UI Instance for Cleanup
-getgenv().DQ_UI = {Window = Window}
 
 Window:EditOpenButton({
     Title = "Open Config",
@@ -678,7 +652,7 @@ end
 
 -- Default Keybind Init --
 local isToggled = true
-AddConn(UserInputService.InputBegan:Connect(function(input, gameProcessed)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode[Settings.UI.Keybind or "RightControl"] then
         isToggled = not isToggled
@@ -686,13 +660,13 @@ AddConn(UserInputService.InputBegan:Connect(function(input, gameProcessed)
         pcall(function() Window:Toggle() end)
         pcall(function() if Window.Instance then Window.Instance.Enabled = isToggled end end)
     end
-end))
+end)
 
 -- Logic Loops --
 
 -- Rejoin If Stuck Loop
 task.spawn(function()
-    while getgenv().DQ_Running do task.wait(1)
+    while true do task.wait(1)
         if Settings.Misc.RejoinIfStuck == true then
             if LastplayerPos and Character and (LastplayerPos - Character:GetPivot().p).Magnitude < 1 then
                 StuckTime = StuckTime + 1
@@ -707,7 +681,7 @@ end)
 
 -- Name Hider Loop
 task.spawn(function()
-    while getgenv().DQ_Running do task.wait()
+    while true do task.wait()
         pcall(function()
             if Character and Character:FindFirstChild("Head") and Character.Head:FindFirstChild("playerNameplate") then
                 local hud = Players.LocalPlayer.PlayerGui:FindFirstChild("HUD")
@@ -735,7 +709,7 @@ end)
 local JoinDebounce = false
 -- Main Logic Loop (Auto Sell, Dungeon Join, Auto Farm)
 task.spawn(function()
-    while getgenv().DQ_Running do task.wait(Settings.Misc.SkillDelay or 0.05)
+    while true do task.wait(Settings.Misc.SkillDelay or 0.05)
         -- Auto Sell
         if Settings.AutoSell.Enabled == true then
             local args = {["chest"] = {},["helmet"] = {},["ability"] = {},["ring"] = {},["weapon"] = {}}
@@ -829,10 +803,7 @@ end)
 
 -- Event Listeners --
 
--- Fix: Reverting DescendantAdded as it causes massive lag
--- Moving back to ChildAdded for specific removal + a light heartbeat loop if needed, 
--- but for now the user wants to remove "Flashy" things, so ChildAdded is safer.
-AddConn(workspace.ChildAdded:Connect(function(child)
+workspace.ChildAdded:Connect(function(child)
     if child.Name == "Coin" then
         GreggCoin = true; RealCoin = child
     end
@@ -842,27 +813,27 @@ AddConn(workspace.ChildAdded:Connect(function(child)
             task.delay(0, function() child:Destroy() end)
         end 
     end
-end))
+end)
 
-AddConn(Players.LocalPlayer.PlayerGui.rewardGuiHolder.holder.ChildAdded:Connect(function()
+Players.LocalPlayer.PlayerGui.rewardGuiHolder.holder.ChildAdded:Connect(function()
     if Settings.Misc.AutoRetry == true then return end -- Check Auto Retry before leaving
     if Settings.AutoFarm.RaidFarm == true then
         TeleportService:Teleport(2414851778, Players.LocalPlayer)
     end
-end))
+end)
 
 if Players.LocalPlayer.PlayerGui:FindFirstChild("cutscene") then
-    AddConn(Players.LocalPlayer.PlayerGui.cutscene.Changed:Connect(function(change)
+    Players.LocalPlayer.PlayerGui.cutscene.Changed:Connect(function(change)
         if change == "Enabled" then
             ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {["\3"] = "skip"},[2] = RemoteCodes["Cutscene"]})        
         end
-    end))
+    end)
 end
 
 -- Auto Kick/Error Recovery
-AddConn(GuiService.ErrorMessageChanged:Connect(function()
+GuiService.ErrorMessageChanged:Connect(function()
     TeleportService:Teleport(2414851778, Players.LocalPlayer)
-end))
+end)
 
 -- Auto Retry Listener (Robust w/ Click Fallback)
 task.spawn(function()
@@ -887,19 +858,14 @@ task.spawn(function()
             end
          end
          
-         AddConn(retryUI:GetPropertyChangedSignal("Enabled"):Connect(TryRetry))
+         retryUI:GetPropertyChangedSignal("Enabled"):Connect(TryRetry)
          if retryUI.Enabled then TryRetry() end
     end
 end)
 
 WindUI:Notify({Title = "Loaded", Content = "Dungeon Quest Script Loaded!", Duration = 5})
 
--- Queue on Teleport (Safe Fallback)
--- If AutoExecute is used, we generally don't want queue_on_teleport to stack.
--- However, we have clean-up logic at the top.
--- If the user wants to play safely, we can comment it out or leave it. 
--- Since clean-up logic is robust (disconnecting all connections), it is safer to leave it. 
--- The lag was purely the DescendantAdded listener.
+-- Queue on Teleport (Standard)
 if queue_on_teleport then
     queue_on_teleport([[
         repeat task.wait() until game:IsLoaded()
