@@ -799,26 +799,50 @@ task.spawn(function()
     end
 
     local KickDetected = false
-    while true do task.wait(0.5) -- Slow down check to prevent lag, 0.5s is enough
+    while true do task.wait(1) -- Check every 1s (Text scan is heavier)
         local gui = Players.LocalPlayer.PlayerGui
         
-        -- STRICT CHECK: Only act if Kicked
-        local kickMsg = gui:FindFirstChild("LoginKick") or gui:FindFirstChild("KickMsg") or gui:FindFirstChild("RobloxPromptGui")
+        -- Text-Based Kick Detection (Scans for "Kick", "Error", "Disconnect")
+        local foundKickMsg = false
         
-        if kickMsg and kickMsg.Enabled then -- Verify enabled
+        -- Check common names first (Optimization)
+        if gui:FindFirstChild("LoginKick") or gui:FindFirstChild("KickMsg") or gui:FindFirstChild("RobloxPromptGui") then
+             foundKickMsg = true
+        else
+             -- Deep Scan for visible text
+             local function scanForText(obj)
+                for _, child in pairs(obj:GetChildren()) do
+                    if child:IsA("TextLabel") and child.Visible then
+                        local txt = string.lower(child.Text)
+                        if string.find(txt, "kick") or string.find(txt, "disconnect") or string.find(txt, "error") or string.find(txt, "connection") then
+                            return true
+                        end
+                    end
+                    if scanForText(child) then return true end
+                end
+             end
+             -- Only scan top-level ScreenGuis to save perf
+             for _, screen in pairs(gui:GetChildren()) do
+                 if screen:IsA("ScreenGui") and screen.Enabled then
+                     if scanForText(screen) then foundKickMsg = true; break end
+                 end
+             end
+        end
+        
+        if foundKickMsg then 
             if not KickDetected then
                  KickDetected = true
-                 -- Fire Return Remote ONCE
+                 
+                 -- Fire Return Remote ONCE (Opens 'Yes/No' Modal)
                  local args = {{{event = "pressReturnToLobby"}, "\017"}}
                  ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
             end
 
             -- Now look for the Confirmation Modal "Yes" button
-            -- The modal might be named "ReturnToLobby" or similar based on image, but we scan for "Yes" text/name
+            -- We assume the Yes button appears in a modal named "ReturnToLobby" or similar
             local yesBtn = FindBtn(gui, "Yes")
             
-            -- Confirm we are clicking the "Return to Lobby" confirmation, not just any "Yes"
-            -- Usually this modal overlays everything else.
+            -- Only click Yes if it appears inside a visible frame (likely the modal)
             if yesBtn then
                  local x = yesBtn.AbsolutePosition.X + (yesBtn.AbsoluteSize.X / 2)
                  local y = yesBtn.AbsolutePosition.Y + (yesBtn.AbsoluteSize.Y / 2)
