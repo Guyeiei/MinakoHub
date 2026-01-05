@@ -269,16 +269,6 @@ end
 
 repeat task.wait() until Players.LocalPlayer and Players.LocalPlayer.PlayerGui
 
--- Initial remote calls (Intro/Character Select)
-task.spawn(function()
-    for i=0,5 do task.wait(.2)
-        if Players.LocalPlayer.PlayerGui:FindFirstChild("CharacterSelection") and not Character then
-            ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {[1] = "\1",[2] = {["\3"] = "select",["characterIndex"] = 1}},[2] = RemoteCodes["CharacterSelection"]})
-            ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {[1] = "\1"},[2] = RemoteCodes["Intro"]})
-        end
-    end
-end)
-
 -- UI Creation --
 
 local Window = WindUI:CreateWindow({
@@ -730,42 +720,81 @@ task.spawn(function()
 
         -- Dungeon/Raid Joining
         if workspace:FindFirstChild("CharacterSelectScene") then
-            if not JoinDebounce then
-                if Settings.Dungeon.Enabled == true then
-                    JoinDebounce = true
-                    local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
-                                        ["difficulty"] = Settings.Dungeon.Diffculty,
-                                        ["mode"] = Settings.Dungeon.Mode,
-                                        ["dungeonName"] = Settings.Dungeon.Name,
-                                        ["tier"] = 1,
-                                    }}},[2] = RemoteCodes["PartySystem"]}}
-                    ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
-                    task.delay(10, function() JoinDebounce = false end)
-                    
-                elseif Settings.Dungeon.RaidEnabled == true then
-                    JoinDebounce = true
-                    local RaidArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
-                                        ["difficulty"] = "Nightmare",
-                                        ["minimumJoinLevel"] = 0,
-                                        ["tier"] = Settings.Dungeon.Tier,
-                                        ["dungeonName"] = Settings.Dungeon.RaidName,
-                                        ["mode"] = "Raid",
-                                        ["visibility"] = "Public",
-                                        ["maxPlayers"] = 40
-                                    }}},[2] = RemoteCodes["PartySystem"]}}
-                    ReplicatedStorage.dataRemoteEvent:FireServer(unpack(RaidArgs))
-                    task.delay(10, function() JoinDebounce = false end)
+            -- 1. LOGIN SEQUENCE AUTOMATION ("Play" -> "Continue" -> "Select")
+            local gui = Players.LocalPlayer.PlayerGui
+            
+            -- Intro (Play)
+            if gui:FindFirstChild("Intro") and gui.Intro.Enabled then
+                ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {[1] = "\1"},[2] = RemoteCodes["Intro"]})
+                -- Fallback Click
+                local btn = gui.Intro:FindFirstChild("Frame") and gui.Intro.Frame:FindFirstChild("Play")
+                if btn then
+                    local x, y = btn.AbsolutePosition.X + btn.AbsoluteSize.X/2, btn.AbsolutePosition.Y + btn.AbsoluteSize.Y/2
+                    VirtualInputManager:SendMouseButtonEvent(x,y,0,true,game,1); task.wait(0.05); VirtualInputManager:SendMouseButtonEvent(x,y,0,false,game,1)
+                end
+            end
 
-                elseif Settings.Dungeon.EnabledBest == true then
-                    JoinDebounce = true
-                    local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
-                        ["difficulty"] = BestDifficulty,
-                        ["mode"] = "Normal",
-                        ["dungeonName"] = BestDungeon,
-                        ["tier"] = 1,
-                    }}},[2] = RemoteCodes["PartySystem"]}}
-                    ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
-                    task.delay(10, function() JoinDebounce = false end)
+            -- SaveSlots (Continue)
+            if gui:FindFirstChild("SaveSlots") and gui.SaveSlots.Enabled then
+                 -- Assuming there's a play button or similar here. Usually Intro remote covers it, but user mentioned Continue.
+                 -- If there is a "Continue" button, we find it.
+                 local btn = gui.SaveSlots:FindFirstChild("Frame") and gui.SaveSlots.Frame:FindFirstChild("Play") -- Often named 'Play' or 'Continue'
+                 if btn then
+                    local x, y = btn.AbsolutePosition.X + btn.AbsoluteSize.X/2, btn.AbsolutePosition.Y + btn.AbsoluteSize.Y/2
+                    VirtualInputManager:SendMouseButtonEvent(x,y,0,true,game,1); task.wait(0.05); VirtualInputManager:SendMouseButtonEvent(x,y,0,false,game,1)
+                 end
+            end
+            
+            -- CharacterSelection (Play/Select)
+            if gui:FindFirstChild("CharacterSelection") and gui.CharacterSelection.Enabled then
+                ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {[1] = "\1",[2] = {["\3"] = "select",["characterIndex"] = 1}},[2] = RemoteCodes["CharacterSelection"]})
+                -- Fallback Click
+                local btn = gui.CharacterSelection:FindFirstChild("Frame") and gui.CharacterSelection.Frame:FindFirstChild("Play")
+                if btn then
+                    local x, y = btn.AbsolutePosition.X + btn.AbsoluteSize.X/2, btn.AbsolutePosition.Y + btn.AbsoluteSize.Y/2
+                    VirtualInputManager:SendMouseButtonEvent(x,y,0,true,game,1); task.wait(0.05); VirtualInputManager:SendMouseButtonEvent(x,y,0,false,game,1)
+                end
+            end
+
+            -- 2. DUNGEON CREATION (Allowed ONLY if Character Spawns)
+            if Character and Character:FindFirstChild("HumanoidRootPart") then
+                if not JoinDebounce then
+                    if Settings.Dungeon.Enabled == true then
+                        JoinDebounce = true
+                        local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                                            ["difficulty"] = Settings.Dungeon.Diffculty,
+                                            ["mode"] = Settings.Dungeon.Mode,
+                                            ["dungeonName"] = Settings.Dungeon.Name,
+                                            ["tier"] = 1,
+                                        }}},[2] = RemoteCodes["PartySystem"]}}
+                        ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
+                        task.delay(10, function() JoinDebounce = false end)
+                        
+                    elseif Settings.Dungeon.RaidEnabled == true then
+                        JoinDebounce = true
+                        local RaidArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                                            ["difficulty"] = "Nightmare",
+                                            ["minimumJoinLevel"] = 0,
+                                            ["tier"] = Settings.Dungeon.Tier,
+                                            ["dungeonName"] = Settings.Dungeon.RaidName,
+                                            ["mode"] = "Raid",
+                                            ["visibility"] = "Public",
+                                            ["maxPlayers"] = 40
+                                        }}},[2] = RemoteCodes["PartySystem"]}}
+                        ReplicatedStorage.dataRemoteEvent:FireServer(unpack(RaidArgs))
+                        task.delay(10, function() JoinDebounce = false end)
+
+                    elseif Settings.Dungeon.EnabledBest == true then
+                        JoinDebounce = true
+                        local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
+                            ["difficulty"] = BestDifficulty,
+                            ["mode"] = "Normal",
+                            ["dungeonName"] = BestDungeon,
+                            ["tier"] = 1,
+                        }}},[2] = RemoteCodes["PartySystem"]}}
+                        ReplicatedStorage.dataRemoteEvent:FireServer(unpack(DunArgs))
+                        task.delay(10, function() JoinDebounce = false end)
+                    end
                 end
             end
         else
@@ -773,11 +802,9 @@ task.spawn(function()
         end
 
         -- Auto Farm
-        -- Ensure logic runs if dungeon is active, even if character is momentarily invalid
         if not workspace:FindFirstChild("CharacterSelectScene") and Settings.AutoFarm.Enabled == true and Players.LocalPlayer.Character then
             
             -- Voting / Ready (Start Button)
-            -- Primary Check: HUD Start Button
             if Players.LocalPlayer.PlayerGui:FindFirstChild("HUD") and Players.LocalPlayer.PlayerGui.HUD.Main.StartButton.Visible == true then
                  -- Remote Attempt
                  ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {[utf8.char(3)] = "vote",["vote"] = true},[2] = utf8.char(28)}) 
@@ -798,7 +825,7 @@ task.spawn(function()
                  -- Remote Attempt
                  ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {[utf8.char(3)] = "vote",["vote"] = true},[2] = utf8.char(28)}) 
                  
-                 -- Physical Fallback (Click Yes Button) (Assuming logic for Yes button location)
+                 -- Physical Fallback (Click Yes Button)
                  local btn = Players.LocalPlayer.PlayerGui.RaidReadyCheck:FindFirstChild("Frame") and Players.LocalPlayer.PlayerGui.RaidReadyCheck.Frame:FindFirstChild("Yes")
                  if btn then
                     local x = btn.AbsolutePosition.X + (btn.AbsoluteSize.X / 2)
