@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 local Lighting = game:GetService("Lighting")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local Character = Players.LocalPlayer.Character
 local PlayerGui = Players.LocalPlayer.PlayerGui
@@ -772,30 +773,59 @@ task.spawn(function()
         end
 
         -- Auto Farm
-        if not workspace:FindFirstChild("CharacterSelectScene") and Settings.AutoFarm.Enabled == true and Character == Players.LocalPlayer.Character and Character:FindFirstChild("HumanoidRootPart") then
-            -- Voting / Ready
-            if Players.LocalPlayer.PlayerGui:FindFirstChild("HUD") and Players.LocalPlayer.PlayerGui.HUD.Main.StartButton.Visible == true or (Players.LocalPlayer.PlayerGui:FindFirstChild("RaidReadyCheck") and Players.LocalPlayer.PlayerGui.RaidReadyCheck.Enabled == true) then
-                ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {[utf8.char(3)] = "vote",["vote"] = true},[2] = utf8.char(28)}) 
-                if ReplicatedStorage.remotes:FindFirstChild("changeStartValue") then ReplicatedStorage.remotes.changeStartValue:FireServer() end
-                ReplicatedStorage.dataRemoteEvent:FireServer(unpack({[1] = {["\3"] = "raidReady"},[2] = RemoteCodes["DungeonHandler"]}))        
-                ReplicatedStorage.Utility.AssetRequester.Remote:InvokeServer({[1] = "ui",[2] = "raidTimeLeftGui"})                  
+        -- Ensure logic runs if dungeon is active, even if character is momentarily invalid
+        if not workspace:FindFirstChild("CharacterSelectScene") and Settings.AutoFarm.Enabled == true and Players.LocalPlayer.Character then
+            
+            -- Voting / Ready (Start Button)
+            -- Primary Check: HUD Start Button
+            if Players.LocalPlayer.PlayerGui:FindFirstChild("HUD") and Players.LocalPlayer.PlayerGui.HUD.Main.StartButton.Visible == true then
+                 -- Remote Attempt
+                 ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {[utf8.char(3)] = "vote",["vote"] = true},[2] = utf8.char(28)}) 
+                 if ReplicatedStorage.remotes:FindFirstChild("changeStartValue") then ReplicatedStorage.remotes.changeStartValue:FireServer() end
+                 ReplicatedStorage.dataRemoteEvent:FireServer(unpack({[1] = {["\3"] = "raidReady"},[2] = RemoteCodes["DungeonHandler"]}))        
+                 ReplicatedStorage.Utility.AssetRequester.Remote:InvokeServer({[1] = "ui",[2] = "raidTimeLeftGui"})                  
+
+                 -- Physical Fallback (Click)
+                 local btn = Players.LocalPlayer.PlayerGui.HUD.Main.StartButton
+                 local x = btn.AbsolutePosition.X + (btn.AbsoluteSize.X / 2)
+                 local y = btn.AbsolutePosition.Y + (btn.AbsoluteSize.Y / 2)
+                 VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+                 task.wait(0.05)
+                 VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+            
+            -- Secondary Check: Raid Ready Check
+            elseif Players.LocalPlayer.PlayerGui:FindFirstChild("RaidReadyCheck") and Players.LocalPlayer.PlayerGui.RaidReadyCheck.Enabled == true then
+                 -- Remote Attempt
+                 ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {[utf8.char(3)] = "vote",["vote"] = true},[2] = utf8.char(28)}) 
+                 
+                 -- Physical Fallback (Click Yes Button) (Assuming logic for Yes button location)
+                 local btn = Players.LocalPlayer.PlayerGui.RaidReadyCheck:FindFirstChild("Frame") and Players.LocalPlayer.PlayerGui.RaidReadyCheck.Frame:FindFirstChild("Yes")
+                 if btn then
+                    local x = btn.AbsolutePosition.X + (btn.AbsoluteSize.X / 2)
+                    local y = btn.AbsolutePosition.Y + (btn.AbsoluteSize.Y / 2)
+                    VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+                    task.wait(0.05)
+                    VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+                 end
             end
             
-            -- Skills
-            if Settings.AutoFarm.UseSkills == true then
-                Functions:DoSkills(20)
-            end
-            
-            -- Gregg Coin
-            if Settings.Misc.GetGreggCoin == true and GreggCoin == true and RealCoin ~= nil then
-                Functions:Teleport(RealCoin:GetPivot()-Vector3.new(0,Settings.AutoFarm.Distance*2,0))
-                GreggCoin = false; RealCoin=nil
-            end
-            
-            -- Teleport to Enemy
-            local Enemy = Functions:GetClosestEnemy()
-            if GreggCoin == false and Enemy ~= nil then
-                Functions:Teleport(Enemy:GetPivot())
+            if Character and Character:FindFirstChild("HumanoidRootPart") then
+                -- Skills
+                if Settings.AutoFarm.UseSkills == true then
+                    Functions:DoSkills(20)
+                end
+                
+                -- Gregg Coin
+                if Settings.Misc.GetGreggCoin == true and GreggCoin == true and RealCoin ~= nil then
+                    Functions:Teleport(RealCoin:GetPivot()-Vector3.new(0,Settings.AutoFarm.Distance*2,0))
+                    GreggCoin = false; RealCoin=nil
+                end
+                
+                -- Teleport to Enemy
+                local Enemy = Functions:GetClosestEnemy()
+                if GreggCoin == false and Enemy ~= nil then
+                    Functions:Teleport(Enemy:GetPivot())
+                end
             end
         end
     end 
