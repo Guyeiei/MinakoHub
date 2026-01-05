@@ -774,27 +774,59 @@ task.spawn(function()
         return (success and btn and btn.Visible) and btn or nil
     end
 
-    while true do task.wait(0.1) -- FASTER CHECK (0.1s)
+-- NEW: Return to Lobby Soft-Kick Recovery
+task.spawn(function()
+    local function FindBtn(parent, name) 
+        -- Recursive Search for Button matches by Name OR Text
+        local function scan(obj)
+            for _, child in pairs(obj:GetChildren()) do
+                if child:IsA("GuiButton") then
+                    if child.Name == name then return child end
+                    if child:IsA("TextButton") and string.find(string.lower(child.Text), string.lower(name)) then return child end
+                    if child:IsA("ImageButton") then
+                        for _, desc in pairs(child:GetDescendants()) do
+                             if desc:IsA("TextLabel") and string.find(string.lower(desc.Text), string.lower(name)) then return child end
+                        end
+                    end
+                end
+                local res = scan(child)
+                if res then return res end
+            end
+        end
+        local success, btn = pcall(function() return scan(parent) end)
+        return (success and btn and btn.Visible) and btn or nil
+    end
+
+    local KickDetected = false
+    while true do task.wait(0.5) -- Slow down check to prevent lag, 0.5s is enough
         local gui = Players.LocalPlayer.PlayerGui
         
-        -- Check for 'Return to Lobby' Button text
-        local returnBtn = FindBtn(gui, "Return to Lobby")
-        if returnBtn then
-             -- FIRE USER REMOTE: pressReturnToLobby
-             -- Confirmed strict structure from user
-             local args = {{{event = "pressReturnToLobby"}, "\017"}}
-             ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
-             
-             -- Wait for 'Yes' confirmation and click it
-             task.wait(0.5)
-             local yesBtn = FindBtn(gui, "Yes")
-             if yesBtn then
+        -- STRICT CHECK: Only act if Kicked
+        local kickMsg = gui:FindFirstChild("LoginKick") or gui:FindFirstChild("KickMsg") or gui:FindFirstChild("RobloxPromptGui")
+        
+        if kickMsg and kickMsg.Enabled then -- Verify enabled
+            if not KickDetected then
+                 KickDetected = true
+                 -- Fire Return Remote ONCE
+                 local args = {{{event = "pressReturnToLobby"}, "\017"}}
+                 ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+            end
+
+            -- Now look for the Confirmation Modal "Yes" button
+            -- The modal might be named "ReturnToLobby" or similar based on image, but we scan for "Yes" text/name
+            local yesBtn = FindBtn(gui, "Yes")
+            
+            -- Confirm we are clicking the "Return to Lobby" confirmation, not just any "Yes"
+            -- Usually this modal overlays everything else.
+            if yesBtn then
                  local x = yesBtn.AbsolutePosition.X + (yesBtn.AbsoluteSize.X / 2)
                  local y = yesBtn.AbsolutePosition.Y + (yesBtn.AbsoluteSize.Y / 2)
                  VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
                  task.wait(0.05)
                  VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
-             end
+            end
+        else
+            KickDetected = false
         end
     end
 end)
