@@ -204,7 +204,7 @@ function Functions:Teleport(Cframe)
     repeat task.wait()
         if Character:FindFirstChild("HumanoidRootPart") and bodyPosition and bodyGyro then
             local targetPos = Cframe.Position
-            local myPos = Cframe.p + Settings.AutoFarm.Distance * 2
+            local myPos = Cframe.p + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0)
             local lookCFrame = CFrame.lookAt(myPos, targetPos)
             Character:PivotTo(lookCFrame * CFrame.Angles(math.rad(-90), 0, 0))
             bodyPosition.Position = myPos
@@ -736,21 +736,18 @@ task.spawn(function()
     end    
 end)
 
--- *** NEW SEPARATE LOGIN LOOP (Dedicated to joining) ***
+-- NEW: Return to Lobby Soft-Kick Recovery
 task.spawn(function()
-    local function ClickButton(parent, name) -- RENAMED for clarity: FindBtn
+    local function FindBtn(parent, name) 
         -- Recursive Search for Button matches by Name OR Text
         local function scan(obj)
             for _, child in pairs(obj:GetChildren()) do
                 if child:IsA("GuiButton") then
                     if child.Name == name then return child end
                     if child:IsA("TextButton") and string.find(string.lower(child.Text), string.lower(name)) then return child end
-                    -- Deep check inside for TextLabels if it's an ImageButton
                     if child:IsA("ImageButton") then
                         for _, desc in pairs(child:GetDescendants()) do
-                             if desc:IsA("TextLabel") and string.find(string.lower(desc.Text), string.lower(name)) then
-                                return child
-                             end
+                             if desc:IsA("TextLabel") and string.find(string.lower(desc.Text), string.lower(name)) then return child end
                         end
                     end
                 end
@@ -758,54 +755,30 @@ task.spawn(function()
                 if res then return res end
             end
         end
-        
         local success, btn = pcall(function() return scan(parent) end)
-        
-        if success and btn and btn.Visible then
-             local x = btn.AbsolutePosition.X + (btn.AbsoluteSize.X / 2)
-             local y = btn.AbsolutePosition.Y + (btn.AbsoluteSize.Y / 2)
-             VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
-             task.wait(0.05)
-             VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
-             return true
-        end
-        return false
+        return (success and btn and btn.Visible) and btn or nil
     end
 
-    while true do task.wait(0.1) -- TURBO LOOP (0.1s)
+    while true do task.wait(1) -- Periodically check for kick screen
         local gui = Players.LocalPlayer.PlayerGui
-        local InLobby = not workspace:FindFirstChild("dungeon") -- Basic check for Lobby vs Dungeon
-
-        if InLobby then
-            -- 1. Intro -> Play
-            if gui:FindFirstChild("Intro") and gui.Intro.Enabled then
-                -- USER PROVIDED REMOTE (Intro)
-                local args = {{{"\1"}, "5"}}
-                ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
-                
-                ClickButton(gui.Intro, "Play")
-            end
-            
-            -- 2. SaveSlots -> Continue
-            if gui:FindFirstChild("SaveSlots") and gui.SaveSlots.Enabled then
-                 -- USER PROVIDED REMOTE (Continue)
-                 local args = {"CharacterAltMultipliers"}
-                 ReplicatedStorage:WaitForChild("remotes"):WaitForChild("RemoteConfigConnection"):InvokeServer(unpack(args))
-
-                 -- PRIORITIZE 'Play' over 'Continue' to enter game faster
-                 if not ClickButton(gui.SaveSlots, "Play") then
-                    ClickButton(gui.SaveSlots, "Continue")
-                 end
-            end
-
-            -- 3. Character Selection -> Play
-            if gui:FindFirstChild("CharacterSelection") and gui.CharacterSelection.Enabled then
-                -- USER PROVIDED REMOTE (Selection)
-                local args = {{{"\1", {["\3"] = "select",["characterIndex"] = 1}}, "\152"}}
-                ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
-
-                ClickButton(gui.CharacterSelection, "Play")
-            end
+        
+        -- Check for 'Return to Lobby' Button text
+        local returnBtn = FindBtn(gui, "Return to Lobby")
+        if returnBtn then
+             -- FIRE USER REMOTE: pressReturnToLobby
+             local args = {{{event = "pressReturnToLobby"}, "\017"}}
+             ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+             
+             -- Wait for 'Yes' confirmation and click it
+             task.wait(0.5)
+             local yesBtn = FindBtn(gui, "Yes")
+             if yesBtn then
+                 local x = yesBtn.AbsolutePosition.X + (yesBtn.AbsoluteSize.X / 2)
+                 local y = yesBtn.AbsolutePosition.Y + (yesBtn.AbsoluteSize.Y / 2)
+                 VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+                 task.wait(0.05)
+                 VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+             end
         end
     end
 end)
@@ -926,7 +899,7 @@ task.spawn(function()
             if Character and Character:FindFirstChild("HumanoidRootPart") then
                 -- Skills
                 if Settings.AutoFarm.UseSkills == true then
-                    Functions:DoSkills(10) -- RESTORED 10x HERE
+                    Functions:DoSkills(10) 
                 end
                 
                 -- Gregg Coin
