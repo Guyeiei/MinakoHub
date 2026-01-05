@@ -799,50 +799,47 @@ task.spawn(function()
     end
 
     local KickDetected = false
-    while true do task.wait(1) -- Check every 1s (Text scan is heavier)
+    while true do task.wait(0.5)
         local gui = Players.LocalPlayer.PlayerGui
         
-        -- Text-Based Kick Detection (Scans for "Kick", "Error", "Disconnect")
-        local foundKickMsg = false
+        -- BROADER KICK DETECTION:
+        local isKicked = false
+        -- 1. Check common Kick UI names
+        if gui:FindFirstChild("LoginKick") and gui.LoginKick.Enabled then isKicked = true end
+        if gui:FindFirstChild("KickMsg") and gui.KickMsg.Enabled then isKicked = true end
+        if gui:FindFirstChild("RobloxPromptGui") and gui.RobloxPromptGui.Enabled then isKicked = true end
+        -- 2. Check for Error Message text anywhere in visible UIs (expensive scan, limit scope if possible)
+        -- (Skipping expensive scan for now to prevent lag, relying on UI names)
         
-        -- Check common names first (Optimization)
-        if gui:FindFirstChild("LoginKick") or gui:FindFirstChild("KickMsg") or gui:FindFirstChild("RobloxPromptGui") then
-             foundKickMsg = true
-        else
-             -- Deep Scan for visible text
-             local function scanForText(obj)
-                for _, child in pairs(obj:GetChildren()) do
-                    if child:IsA("TextLabel") and child.Visible then
-                        local txt = string.lower(child.Text)
-                        if string.find(txt, "kick") or string.find(txt, "disconnect") or string.find(txt, "error") or string.find(txt, "connection") then
-                            return true
-                        end
-                    end
-                    if scanForText(child) then return true end
-                end
-             end
-             -- Only scan top-level ScreenGuis to save perf
-             for _, screen in pairs(gui:GetChildren()) do
-                 if screen:IsA("ScreenGui") and screen.Enabled then
-                     if scanForText(screen) then foundKickMsg = true; break end
-                 end
-             end
-        end
-        
-        if foundKickMsg then 
+        -- 3. Check specific "ReturnToLobby" Modal visibility (implies we need to click Yes)
+        local returnModal = gui:FindFirstChild("ReturnToLobby")
+        if returnModal and returnModal.Enabled then isKicked = true end
+
+        if isKicked then
+            -- A. ACTION: Trigger 'Return to Lobby' (Menu)
             if not KickDetected then
                  KickDetected = true
-                 
-                 -- Fire Return Remote ONCE (Opens 'Yes/No' Modal)
+                 -- 1. Try Remote First
                  local args = {{{event = "pressReturnToLobby"}, "\017"}}
                  ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+                 
+                 -- 2. Try Physical Click on 'Return to Lobby' button (Top Right)
+                 -- This ensures the modal opens if the remote fails
+                 local topBtn = FindBtn(gui, "Return to Lobby")
+                 if topBtn then
+                      local x = topBtn.AbsolutePosition.X + (topBtn.AbsoluteSize.X / 2)
+                      local y = topBtn.AbsolutePosition.Y + (topBtn.AbsoluteSize.Y / 2)
+                      VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+                      task.wait(0.05)
+                      VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+                 end
             end
 
-            -- Now look for the Confirmation Modal "Yes" button
-            -- We assume the Yes button appears in a modal named "ReturnToLobby" or similar
-            local yesBtn = FindBtn(gui, "Yes")
+            -- B. CONFIRMATION: Click 'Yes' (Modal)
+            -- Prioritize searching inside "ReturnToLobby" ScreenGui as seen in user image
+            local targetParent = returnModal or gui
+            local yesBtn = FindBtn(targetParent, "Yes")
             
-            -- Only click Yes if it appears inside a visible frame (likely the modal)
             if yesBtn then
                  local x = yesBtn.AbsolutePosition.X + (yesBtn.AbsoluteSize.X / 2)
                  local y = yesBtn.AbsolutePosition.Y + (yesBtn.AbsoluteSize.Y / 2)
