@@ -16,6 +16,7 @@ print("✅ Welcome: " .. AllowedUsers[player.UserId])
 
 local Games = {
     [110483372589393] = "https://raw.githubusercontent.com/Guyeiei/MinakoHub/refs/heads/main/AnimeClestialX",
+    [2414851778] = 
 }
 
 local placeId = game.PlaceId
