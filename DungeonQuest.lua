@@ -160,6 +160,11 @@ end
 function Functions:DoSkills(RepeatCount)
     if not Players.LocalPlayer.Backpack then return end
     for i, v in pairs(Players.LocalPlayer.Backpack:GetChildren()) do
+        -- Skip Weapon (Basic Attack) to prevent auto-clicking
+        if v:FindFirstChild("itemType") and v.itemType.Value == "weapon" then
+            continue
+        end
+
         for k = 1, (RepeatCount or 1) do -- Loop 10 times
             task.spawn(function()
                 if v:FindFirstChild("cooldown") and v.cooldown.Value and (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")) then
