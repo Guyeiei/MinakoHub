@@ -12,6 +12,11 @@ local GuiService = game:GetService("GuiService")
 local Lighting = game:GetService("Lighting")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
+-- Ensure queue_on_teleport is available
+if not queue_on_teleport and syn and syn.queue_on_teleport then
+    queue_on_teleport = syn.queue_on_teleport
+end
+
 local Character = Players.LocalPlayer.Character
 local PlayerGui = Players.LocalPlayer.PlayerGui
 
@@ -653,6 +658,19 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
+-- Queue Function Wrapper
+local function RegisterQueue()
+    if queue_on_teleport then
+        queue_on_teleport([[
+            repeat task.wait() until game:IsLoaded()
+            repeat task.wait() until game:GetService("Players").LocalPlayer
+            repeat task.wait() until game:GetService("Players").LocalPlayer.PlayerGui
+            task.wait(3) 
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Guyeiei/MinakoHub/main/DungeonQuest.lua"))()
+        ]])
+    end
+end
+
 -- Logic Loops --
 
 -- Rejoin If Stuck Loop
@@ -662,6 +680,7 @@ task.spawn(function()
             if LastplayerPos and Character and (LastplayerPos - Character:GetPivot().p).Magnitude < 1 then
                 StuckTime = StuckTime + 1
             elseif StuckTime == Settings.Misc.RejoinStuckDelay then
+                RegisterQueue() -- Ensure queue before TP
                 TeleportService:Teleport(2414851778, Players.LocalPlayer)
             else
                 StuckTime = 0
@@ -740,7 +759,7 @@ task.spawn(function()
             -- 3. Character Selection -> Play
             if gui:FindFirstChild("CharacterSelection") and gui.CharacterSelection.Enabled then
                 -- USER PROVIDED REMOTE (Selection)
-                local args = {{{"\1", {["\3"] = "select", ["characterIndex"] = 1}}, "\152"}}
+                local args = {{{"\1", {["\3"] = "select",["characterIndex"] = 1}}, "\152"}}
                 ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
 
                 ClickButton(gui.CharacterSelection, "Play")
@@ -776,6 +795,10 @@ task.spawn(function()
             if not JoinDebounce then
                 if Settings.Dungeon.Enabled == true then
                     JoinDebounce = true
+                    
+                    -- REGISTER QUEUE AGAIN JUST IN CASE
+                    RegisterQueue()
+                    
                     local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
                                         ["difficulty"] = Settings.Dungeon.Diffculty,
                                         ["mode"] = Settings.Dungeon.Mode,
@@ -787,6 +810,10 @@ task.spawn(function()
                     
                 elseif Settings.Dungeon.RaidEnabled == true then
                     JoinDebounce = true
+                    
+                    -- REGISTER QUEUE AGAIN JUST IN CASE
+                    RegisterQueue()
+
                     local RaidArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
                                         ["difficulty"] = "Nightmare",
                                         ["minimumJoinLevel"] = 0,
@@ -801,6 +828,10 @@ task.spawn(function()
 
                 elseif Settings.Dungeon.EnabledBest == true then
                     JoinDebounce = true
+                    
+                    -- REGISTER QUEUE AGAIN JUST IN CASE
+                    RegisterQueue()
+
                     local DunArgs = {[1] = {[1] = {[1] = "\1",[2] = {["\3"] = "PlaySolo",["partyData"] = {
                         ["difficulty"] = BestDifficulty,
                         ["mode"] = "Normal",
@@ -889,6 +920,7 @@ end)
 Players.LocalPlayer.PlayerGui.rewardGuiHolder.holder.ChildAdded:Connect(function()
     if Settings.Misc.AutoRetry == true then return end -- Check Auto Retry before leaving
     if Settings.AutoFarm.RaidFarm == true then
+        RegisterQueue() -- RE-REGISTER HERE TOO
         TeleportService:Teleport(2414851778, Players.LocalPlayer)
     end
 end)
@@ -903,6 +935,7 @@ end
 
 -- Auto Kick/Error Recovery
 GuiService.ErrorMessageChanged:Connect(function()
+    RegisterQueue() -- RE-REGISTER HERE TOO
     TeleportService:Teleport(2414851778, Players.LocalPlayer)
 end)
 
@@ -936,13 +969,5 @@ end)
 
 WindUI:Notify({Title = "Loaded", Content = "Dungeon Quest Script Loaded!", Duration = 5})
 
--- Queue on Teleport (Standard)
-if queue_on_teleport then
-    queue_on_teleport([[
-        repeat task.wait() until game:IsLoaded()
-        repeat task.wait() until game:GetService("Players").LocalPlayer
-        repeat task.wait() until game:GetService("Players").LocalPlayer.PlayerGui
-        task.wait(1) 
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Guyeiei/MinakoHub/main/DungeonQuest.lua"))()
-    ]])
-end
+-- Initial Queue (Startup)
+RegisterQueue()
