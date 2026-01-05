@@ -46,6 +46,7 @@ local WaitingToTp = false
 local GreggCoin, RealCoin = false, nil
 local OldTick = tick()
 local BestDungeon, BestDifficulty = "nil", "Insane"
+local CurrentRunningDungeon = nil -- Tracks what dungeon we started in
 local NameHideName, NameHideTitle = "", ""
 local RemoteModule
 local LastplayerPos, StuckTime = Vector3.zero, 0
@@ -344,6 +345,11 @@ task.spawn(function()
         if BestDifficulty then
              if DifficultyDropdown and DifficultyDropdown.Set then DifficultyDropdown:Set(BestDifficulty) end
              Settings.Dungeon.Diffculty = BestDifficulty
+        end
+        
+        -- Store Initial Dungeon Context
+        if workspace:FindFirstChild("dungeon") then
+             CurrentRunningDungeon = BestDungeon
         end
     end)
 end)
@@ -698,6 +704,24 @@ end
 
 -- Logic Loops --
 
+-- Auto Next Dungeon (Check Level Up)
+task.spawn(function()
+    while true do task.wait(5) -- Check every 5 seconds
+        if Settings.Dungeon.EnabledBest and workspace:FindFirstChild("dungeon") then
+             -- Recalculate Best Dungeon
+             Functions:GetBestDungeon()
+             
+             -- If we have a tracked current dungeon, and the NEW best is DIFFERENT (better)
+             if CurrentRunningDungeon and BestDungeon ~= CurrentRunningDungeon then
+                -- Trigger Return to Lobby (mimic kick)
+                -- This allows Auto Create to run again in Lobby with the NEW best dungeon
+                local args = {{{event = "pressReturnToLobby"}, "\017"}}
+                ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+             end
+        end
+    end
+end)
+
 -- Rejoin If Stuck Loop
 task.spawn(function()
     while true do task.wait(1)
@@ -751,7 +775,7 @@ task.spawn(function()
     end    
 end)
 
-
+-- NEW: Return to Lobby Soft-Kick Recovery
 task.spawn(function()
     local function FindBtn(parent, name) 
         -- Recursive Search for Button matches by Name OR Text
