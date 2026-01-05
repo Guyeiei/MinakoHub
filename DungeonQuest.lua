@@ -702,13 +702,23 @@ end
 task.spawn(function()
     while true do task.wait(1)
         if Settings.Misc.RejoinIfStuck == true then
-            if LastplayerPos and Character and (LastplayerPos - Character:GetPivot().p).Magnitude < 1 then
-                StuckTime = StuckTime + 1
-            elseif StuckTime == Settings.Misc.RejoinStuckDelay then
-                RegisterQueue() -- Ensure queue before TP
-                TeleportService:Teleport(2414851778, Players.LocalPlayer)
-            else
-                StuckTime = 0
+            -- Don't rejoin if we are handling a Soft Kick ("Return to Lobby" detected)
+            local gui = Players.LocalPlayer.PlayerGui
+            local softKickDetect = false
+             -- Quick scan for kick UI to prevent conflict
+            if gui:FindFirstChild("LoginKick") or gui:FindFirstChild("KickMsg") then 
+                softKickDetect = true 
+            end
+
+            if not softKickDetect then
+                if LastplayerPos and Character and (LastplayerPos - Character:GetPivot().p).Magnitude < 1 then
+                    StuckTime = StuckTime + 1
+                elseif StuckTime == Settings.Misc.RejoinStuckDelay then
+                    RegisterQueue() -- Ensure queue before TP
+                    TeleportService:Teleport(2414851778, Players.LocalPlayer)
+                else
+                    StuckTime = 0
+                end
             end
         end
     end
@@ -764,13 +774,14 @@ task.spawn(function()
         return (success and btn and btn.Visible) and btn or nil
     end
 
-    while true do task.wait(1) -- Periodically check for kick screen
+    while true do task.wait(0.1) -- FASTER CHECK (0.1s)
         local gui = Players.LocalPlayer.PlayerGui
         
         -- Check for 'Return to Lobby' Button text
         local returnBtn = FindBtn(gui, "Return to Lobby")
         if returnBtn then
              -- FIRE USER REMOTE: pressReturnToLobby
+             -- Confirmed strict structure from user
              local args = {{{event = "pressReturnToLobby"}, "\017"}}
              ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
              
@@ -953,11 +964,11 @@ if Players.LocalPlayer.PlayerGui:FindFirstChild("cutscene") then
     end)
 end
 
--- Auto Kick/Error Recovery
-GuiService.ErrorMessageChanged:Connect(function()
-    RegisterQueue() -- RE-REGISTER HERE TOO
-    TeleportService:Teleport(2414851778, Players.LocalPlayer)
-end)
+-- DISABLED GENERIC ERROR HANDLER to allow 'Return to Lobby' specific handling
+-- GuiService.ErrorMessageChanged:Connect(function()
+--    RegisterQueue() 
+--    TeleportService:Teleport(2414851778, Players.LocalPlayer)
+-- end)
 
 -- Auto Retry Listener (Robust w/ Click Fallback)
 task.spawn(function()
