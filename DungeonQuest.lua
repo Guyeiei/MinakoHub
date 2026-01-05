@@ -1,3 +1,7 @@
+-- Lightweight Singleton (Prevent Double Execution)
+if getgenv().MinakoLoaded then return end
+getgenv().MinakoLoaded = true
+
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 -- Variable Setup --
@@ -11,6 +15,21 @@ local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 local Lighting = game:GetService("Lighting")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- Pre-Load UI Cleanup (Fix Stacking)
+local function CleanOldUI()
+    for _, v in pairs(game:GetService("CoreGui"):GetChildren()) do
+        if v.Name == "Dungeon Quest!" or (v:FindFirstChild("Title") and v.Title.Text == "Dungeon Quest!") then
+            v:Destroy()
+        end
+    end
+    for _, v in pairs(Players.LocalPlayer.PlayerGui:GetChildren()) do
+        if v.Name == "Dungeon Quest!" or (v:FindFirstChild("Title") and v.Title.Text == "Dungeon Quest!") then
+             v:Destroy()
+        end
+    end
+end
+CleanOldUI()
 
 -- Ensure queue_on_teleport is available
 if not queue_on_teleport and syn and syn.queue_on_teleport then
