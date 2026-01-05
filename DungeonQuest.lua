@@ -157,7 +157,6 @@ function Functions:GetInventoryItems()
     return tbl
 end
 
--- FIXED: Restored 10x Spam Loop as requested
 function Functions:DoSkills(RepeatCount)
     if not Players.LocalPlayer.Backpack then return end
     for i, v in pairs(Players.LocalPlayer.Backpack:GetChildren()) do
@@ -739,9 +738,23 @@ end)
 
 -- *** NEW SEPARATE LOGIN LOOP (Dedicated to joining) ***
 task.spawn(function()
-    local function ClickButton(parent, name)
-        local success, btn = pcall(function() return parent:FindFirstChild(name, true) end) -- Wrapped in pcall
-        if success and btn and btn:IsA("GuiButton") and btn.Visible then
+    local function ClickButton(parent, name) -- RENAMED for clarity: FindBtn
+        -- Recursive Search for Button matches by Name OR Text
+        local function scan(obj)
+            for _, child in pairs(obj:GetChildren()) do
+                if child:IsA("GuiButton") then
+                    if child.Name == name or (child:IsA("TextButton") and child.Text == name) then
+                        return child
+                    end
+                end
+                local res = scan(child)
+                if res then return res end
+            end
+        end
+        
+        local success, btn = pcall(function() return scan(parent) end)
+        
+        if success and btn and btn.Visible then
              local x = btn.AbsolutePosition.X + (btn.AbsoluteSize.X / 2)
              local y = btn.AbsolutePosition.Y + (btn.AbsoluteSize.Y / 2)
              VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
