@@ -719,12 +719,19 @@ task.spawn(function()
         if InLobby then
             -- 1. Intro -> Play
             if gui:FindFirstChild("Intro") and gui.Intro.Enabled then
-                ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {[1] = "\1"},[2] = RemoteCodes["Intro"]})
+                -- USER PROVIDED REMOTE (Intro)
+                local args = {{{"\1"}, "5"}}
+                ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+                
                 ClickButton(gui.Intro, "Play")
             end
             
-            -- 2. SaveSlots -> Play/Continue
+            -- 2. SaveSlots -> Continue
             if gui:FindFirstChild("SaveSlots") and gui.SaveSlots.Enabled then
+                 -- USER PROVIDED REMOTE (Continue)
+                 local args = {"CharacterAltMultipliers"}
+                 ReplicatedStorage:WaitForChild("remotes"):WaitForChild("RemoteConfigConnection"):InvokeServer(unpack(args))
+
                  if not ClickButton(gui.SaveSlots, "Play") then
                     ClickButton(gui.SaveSlots, "Continue")
                  end
@@ -732,7 +739,10 @@ task.spawn(function()
 
             -- 3. Character Selection -> Play
             if gui:FindFirstChild("CharacterSelection") and gui.CharacterSelection.Enabled then
-                ReplicatedStorage.dataRemoteEvent:FireServer({[1] = {[1] = "\1",[2] = {["\3"] = "select",["characterIndex"] = 1}},[2] = RemoteCodes["CharacterSelection"]})
+                -- USER PROVIDED REMOTE (Selection)
+                local args = {{{"\1", {["\3"] = "select", ["characterIndex"] = 1}}, "\152"}}
+                ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+
                 ClickButton(gui.CharacterSelection, "Play")
             end
         end
