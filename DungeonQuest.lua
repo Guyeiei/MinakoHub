@@ -16,18 +16,20 @@ local GuiService = game:GetService("GuiService")
 local Lighting = game:GetService("Lighting")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
--- Pre-Load UI Cleanup (Fix Stacking)
+-- Pre-Load UI Cleanup (Fix Stacking) -- WRAPPED IN PCALL
 local function CleanOldUI()
-    for _, v in pairs(game:GetService("CoreGui"):GetChildren()) do
-        if v.Name == "Dungeon Quest!" or (v:FindFirstChild("Title") and v.Title.Text == "Dungeon Quest!") then
-            v:Destroy()
+    pcall(function()
+        for _, v in pairs(game:GetService("CoreGui"):GetChildren()) do
+            if v.Name == "Dungeon Quest!" or (v:FindFirstChild("Title") and v.Title.Text == "Dungeon Quest!") then
+                v:Destroy()
+            end
         end
-    end
-    for _, v in pairs(Players.LocalPlayer.PlayerGui:GetChildren()) do
-        if v.Name == "Dungeon Quest!" or (v:FindFirstChild("Title") and v.Title.Text == "Dungeon Quest!") then
-             v:Destroy()
+        for _, v in pairs(Players.LocalPlayer.PlayerGui:GetChildren()) do
+            if v.Name == "Dungeon Quest!" or (v:FindFirstChild("Title") and v.Title.Text == "Dungeon Quest!") then
+                 v:Destroy()
+            end
         end
-    end
+    end)
 end
 CleanOldUI()
 
@@ -54,12 +56,12 @@ local Settings = {
     AutoFarm = {Enabled = false, Delay = 2, Distance = 6, UseSkills = false, RaidFarm = false},
     Dungeon = {Enabled = false, EnabledBest = false, Name = "", Diffculty = "", Mode = "Normal", RaidEnabled = false, RaidName = "", Tier = "1"},
     AutoSell = {Enabled = false, Raritys = {}, ItemTypes = {}},
-    Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120, RemovePulseVisuals = true, SkillDelay = 0.05},
+    Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120, RemovePulseVisuals = true, SkillDelay = 0.1}, -- Increased Default Delay for Safety
     DebugMode = false,
     UI = {Keybind = "RightControl"}
 }
 
--- Game Data
+-- Game Data (Preserved)
 local DungeonLevels = {
     ["0"] = {["Dungeon"] = "Desert Temple", ["Easy"] = 0, ["Medium"] = 5, ["Hard"] = 15},
     ["30"] = {["Dungeon"] = "Winter Outpost", ["Easy"] = 30, ["Medium"] = 40, ["Hard"] = 50},
@@ -155,20 +157,19 @@ function Functions:GetInventoryItems()
     return tbl
 end
 
-function Functions:DoSkills(RepeatCount)
+-- FIXED: Optimized DoSkills to prevent crash
+function Functions:DoSkills()
     if not Players.LocalPlayer.Backpack then return end
     for i, v in pairs(Players.LocalPlayer.Backpack:GetChildren()) do
-        for k = 0, RepeatCount do
-            task.spawn(function()
-                if v:FindFirstChild("cooldown") and v.cooldown.Value and (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")) then
-                    (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")):FireServer()
-                elseif v:FindFirstChild("cooldown") and v.cooldown.Value then
-                    ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {["\t"] = v},[2] = RemoteCodes["Abilities"]})
-                end
-            end)
-        end
+        -- Removed Inner Loop (20x) -> Now fires 1x per tick (Fast enough!)
+        task.spawn(function()
+            if v:FindFirstChild("cooldown") and v.cooldown.Value and (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")) then
+                (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")):FireServer()
+            elseif v:FindFirstChild("cooldown") and v.cooldown.Value then
+                ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {["\t"] = v},[2] = RemoteCodes["Abilities"]})
+            end
+        end)
     end
-    task.wait()
 end
 
 function Functions:Teleport(Cframe)
@@ -738,8 +739,8 @@ end)
 -- *** NEW SEPARATE LOGIN LOOP (Dedicated to joining) ***
 task.spawn(function()
     local function ClickButton(parent, name)
-        local btn = parent:FindFirstChild(name, true) -- Recursive search
-        if btn and btn:IsA("GuiButton") and btn.Visible then
+        local success, btn = pcall(function() return parent:FindFirstChild(name, true) end) -- Wrapped in pcall
+        if success and btn and btn:IsA("GuiButton") and btn.Visible then
              local x = btn.AbsolutePosition.X + (btn.AbsoluteSize.X / 2)
              local y = btn.AbsolutePosition.Y + (btn.AbsoluteSize.Y / 2)
              VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
@@ -790,7 +791,7 @@ end)
 local JoinDebounce = false
 -- Main Logic Loop (Auto Sell, Dungeon Join, Auto Farm)
 task.spawn(function()
-    while true do task.wait(Settings.Misc.SkillDelay or 0.05)
+    while true do task.wait(Settings.Misc.SkillDelay or 0.1) -- Ensure default isn't too low
         -- Auto Sell
         if Settings.AutoSell.Enabled == true then
             local args = {["chest"] = {},["helmet"] = {},["ability"] = {},["ring"] = {},["weapon"] = {}}
@@ -903,7 +904,7 @@ task.spawn(function()
             if Character and Character:FindFirstChild("HumanoidRootPart") then
                 -- Skills
                 if Settings.AutoFarm.UseSkills == true then
-                    Functions:DoSkills(20)
+                    Functions:DoSkills(20) -- Argument ignored now in simplified func
                 end
                 
                 -- Gregg Coin
