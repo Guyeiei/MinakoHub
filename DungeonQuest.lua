@@ -204,7 +204,7 @@ function Functions:Teleport(Cframe)
     repeat task.wait()
         if Character:FindFirstChild("HumanoidRootPart") and bodyPosition and bodyGyro then
             local targetPos = Cframe.Position
-            local myPos = Cframe.p + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0)
+            local myPos = Cframe.p + Settings.AutoFarm.Distance * 2
             local lookCFrame = CFrame.lookAt(myPos, targetPos)
             Character:PivotTo(lookCFrame * CFrame.Angles(math.rad(-90), 0, 0))
             bodyPosition.Position = myPos
@@ -743,8 +743,15 @@ task.spawn(function()
         local function scan(obj)
             for _, child in pairs(obj:GetChildren()) do
                 if child:IsA("GuiButton") then
-                    if child.Name == name or (child:IsA("TextButton") and child.Text == name) then
-                        return child
+                    if child.Name == name then return child end
+                    if child:IsA("TextButton") and string.find(string.lower(child.Text), string.lower(name)) then return child end
+                    -- Deep check inside for TextLabels if it's an ImageButton
+                    if child:IsA("ImageButton") then
+                        for _, desc in pairs(child:GetDescendants()) do
+                             if desc:IsA("TextLabel") and string.find(string.lower(desc.Text), string.lower(name)) then
+                                return child
+                             end
+                        end
                     end
                 end
                 local res = scan(child)
@@ -765,7 +772,7 @@ task.spawn(function()
         return false
     end
 
-    while true do task.wait(0.5) -- Slower loop check
+    while true do task.wait(0.1) -- TURBO LOOP (0.1s)
         local gui = Players.LocalPlayer.PlayerGui
         local InLobby = not workspace:FindFirstChild("dungeon") -- Basic check for Lobby vs Dungeon
 
@@ -785,6 +792,7 @@ task.spawn(function()
                  local args = {"CharacterAltMultipliers"}
                  ReplicatedStorage:WaitForChild("remotes"):WaitForChild("RemoteConfigConnection"):InvokeServer(unpack(args))
 
+                 -- PRIORITIZE 'Play' over 'Continue' to enter game faster
                  if not ClickButton(gui.SaveSlots, "Play") then
                     ClickButton(gui.SaveSlots, "Continue")
                  end
