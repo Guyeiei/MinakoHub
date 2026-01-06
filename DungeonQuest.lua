@@ -818,13 +818,13 @@ task.spawn(function()
         -- We only do this if not already confirmed to save performance
         if not isKicked then
              local function hasKickText(obj)
-                if obj:IsA("TextLabel") and (string.find(obj.Text, "Kick") or string.find(obj.Text, "Disconnect")) then return true end
+                if obj:IsA("TextLabel") and (string.find(obj.Text, "Kick") or string.find(obj.Text, "Disconnect") or string.find(obj.Text, "Exploiting")) then return true end
                 for _,v in pairs(obj:GetChildren()) do if hasKickText(v) then return true end end
                 return false
              end
              -- Only check specific likely paths or top level enabled GUIs
              for _,v in pairs(gui:GetChildren()) do
-                if v:IsA("ScreenGui") and v.Enabled and (v.Name == "Notification" or v.Name == "Error") then
+                if v:IsA("ScreenGui") and v.Enabled and (v.Name == "Notification" or v.Name == "Error" or v.Name == "DialogApp") then
                     if hasKickText(v) then isKicked = true; break end
                 end
              end
@@ -836,19 +836,23 @@ task.spawn(function()
             if tick() - KickDetectedTime > 1 then
                  KickDetectedTime = tick()
                  
-                 -- 1. Try Remote
+                 -- 1. Try Remote (Background Work)
+                 -- This is the critical part for bypassing the "Exploiting" overlay
                  local args = {{{event = "pressReturnToLobby"}, "\017"}}
                  ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
                  
-                 -- 2. Try Physical Click on 'Return to Lobby' button (Top Right)
-                 local topBtn = FindBtn(gui, "Return to Lobby")
-                 if topBtn then
-                      local x = topBtn.AbsolutePosition.X + (topBtn.AbsoluteSize.X / 2)
-                      local y = topBtn.AbsolutePosition.Y + (topBtn.AbsoluteSize.Y / 2)
-                      VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
-                      task.wait(0.05)
-                      VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
-                 end
+                 -- 2. Try Physical Click on 'Return to Lobby' button (Top Right) IF Visible
+                 -- We check if it exists first to avoid errors, but rely on remote primarily
+                 pcall(function()
+                     local topBtn = FindBtn(gui, "Return to Lobby")
+                     if topBtn and topBtn.Visible then
+                          local x = topBtn.AbsolutePosition.X + (topBtn.AbsoluteSize.X / 2)
+                          local y = topBtn.AbsolutePosition.Y + (topBtn.AbsoluteSize.Y / 2)
+                          VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+                          task.wait(0.05)
+                          VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+                     end
+                 end)
             end
 
             -- B. CONFIRMATION: Click 'Yes' (Modal)
