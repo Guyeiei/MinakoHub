@@ -838,7 +838,18 @@ task.spawn(function()
                  
                  -- 1. Try Remote (Background Work)
                  -- This is the critical part for bypassing the "Exploiting" overlay
-                 local args = {{{event = "pressReturnToLobby"}, "\017"}}
+                 -- 1. Try Remote (Background Work)
+                 -- This is the critical part for bypassing the "Exploiting" overlay
+                 -- Updated based on User Spy Log: [[["\u0001",{"\u0003":"ReturnToLobby"}],"A"]]
+                 local args = {
+                    [1] = {
+                        [1] = "\1",
+                        [2] = {
+                            ["\3"] = "ReturnToLobby"
+                        }
+                    },
+                    [2] = "A"
+                 }
                  ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
                  
                  -- 2. Try Physical Click on 'Return to Lobby' button (Top Right) IF Visible
