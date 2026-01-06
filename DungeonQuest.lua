@@ -798,7 +798,7 @@ task.spawn(function()
         return (success and btn and btn.Visible) and btn or nil
     end
 
-    local KickDetected = false
+    local KickDetectedTime = 0
     while true do task.wait(0.5)
         local gui = Players.LocalPlayer.PlayerGui
         
@@ -808,23 +808,39 @@ task.spawn(function()
         if gui:FindFirstChild("LoginKick") and gui.LoginKick.Enabled then isKicked = true end
         if gui:FindFirstChild("KickMsg") and gui.KickMsg.Enabled then isKicked = true end
         if gui:FindFirstChild("RobloxPromptGui") and gui.RobloxPromptGui.Enabled then isKicked = true end
-        -- 2. Check for Error Message text anywhere in visible UIs (expensive scan, limit scope if possible)
-        -- (Skipping expensive scan for now to prevent lag, relying on UI names)
         
-        -- 3. Check specific "ReturnToLobby" Modal visibility (implies we need to click Yes)
+        -- 2. Check specific "ReturnToLobby" Modal visibility
+        -- If this modal is visible, we are effectively 'kicked'/prompted
         local returnModal = gui:FindFirstChild("ReturnToLobby")
         if returnModal and returnModal.Enabled then isKicked = true end
+        
+        -- 3. Check for specific text availability if UI name isn't found (Fallback)
+        -- We only do this if not already confirmed to save performance
+        if not isKicked then
+             local function hasKickText(obj)
+                if obj:IsA("TextLabel") and (string.find(obj.Text, "Kick") or string.find(obj.Text, "Disconnect")) then return true end
+                for _,v in pairs(obj:GetChildren()) do if hasKickText(v) then return true end end
+                return false
+             end
+             -- Only check specific likely paths or top level enabled GUIs
+             for _,v in pairs(gui:GetChildren()) do
+                if v:IsA("ScreenGui") and v.Enabled and (v.Name == "Notification" or v.Name == "Error") then
+                    if hasKickText(v) then isKicked = true; break end
+                end
+             end
+        end
 
         if isKicked then
             -- A. ACTION: Trigger 'Return to Lobby' (Menu)
-            if not KickDetected then
-                 KickDetected = true
-                 -- 1. Try Remote First
+            -- RETRY LOGIC: We fire every 1 second (approx) if kick persists
+            if tick() - KickDetectedTime > 1 then
+                 KickDetectedTime = tick()
+                 
+                 -- 1. Try Remote
                  local args = {{{event = "pressReturnToLobby"}, "\017"}}
                  ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
                  
                  -- 2. Try Physical Click on 'Return to Lobby' button (Top Right)
-                 -- This ensures the modal opens if the remote fails
                  local topBtn = FindBtn(gui, "Return to Lobby")
                  if topBtn then
                       local x = topBtn.AbsolutePosition.X + (topBtn.AbsoluteSize.X / 2)
@@ -836,11 +852,11 @@ task.spawn(function()
             end
 
             -- B. CONFIRMATION: Click 'Yes' (Modal)
-            -- Prioritize searching inside "ReturnToLobby" ScreenGui as seen in user image
             local targetParent = returnModal or gui
             local yesBtn = FindBtn(targetParent, "Yes")
             
             if yesBtn then
+                 -- Click Yes immediately if found
                  local x = yesBtn.AbsolutePosition.X + (yesBtn.AbsoluteSize.X / 2)
                  local y = yesBtn.AbsolutePosition.Y + (yesBtn.AbsoluteSize.Y / 2)
                  VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
@@ -848,7 +864,8 @@ task.spawn(function()
                  VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
             end
         else
-            KickDetected = false
+            -- Reset timer slightly to allow immediate reaction next time
+            KickDetectedTime = 0
         end
     end
 end)
