@@ -298,6 +298,24 @@ else
     RemoteCodes={["DungeonRetryBridge"]="/",["CharacterSelection"]="M",["PartySystem"]="d",["Cutscene"]="\184",["Intro"]="5",["DungeonHandler"]=";",["Abilities"]="G"}
 end
 
+-- Character Selection Bypass (Like Fost.lua)
+task.spawn(function()
+    repeat task.wait() until Players.LocalPlayer and Players.LocalPlayer.PlayerGui
+    for i=0,5 do task.wait(.2)
+        if Players.LocalPlayer.PlayerGui:FindFirstChild("CharacterSelection") and not Character then
+            -- Bypass Character Selection
+            ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {[1] = "\1",[2] = {["\3"] = "select",["characterIndex"] = 1}},[2] = RemoteCodes["CharacterSelection"]})
+            -- Trigger Intro
+            ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {[1] = "\1"},[2] = RemoteCodes["Intro"]})
+        end
+    end
+end)
+
+-- Error Handler (Rejoin on Error)
+game:GetService("GuiService").ErrorMessageChanged:Connect(function()
+    TeleportService:Teleport(2414851778, Players.LocalPlayer)
+end)
+
 repeat task.wait() until Players.LocalPlayer and Players.LocalPlayer.PlayerGui
 
 -- UI Creation --
@@ -1087,4 +1105,9 @@ end)
 WindUI:Notify({Title = "Loaded", Content = "Dungeon Quest Script Loaded!", Duration = 5})
 
 -- Initial Queue (Startup)
-RegisterQueue()
+-- Initial Queue (Startup)
+if RegisterQueue then RegisterQueue() end
+
+if queue_on_teleport then
+    queue_on_teleport('local s,e=pcall(function() loadstring(readfile("DungeonQuest.lua"))() end) if not s then warn("Failed to reload DQ: "..e) end')
+end
