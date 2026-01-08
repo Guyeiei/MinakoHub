@@ -212,9 +212,9 @@ function Functions:Teleport(Cframe)
             local targetPos = Cframe.Position
             local myPos = Cframe.p + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0)
             local lookCFrame = CFrame.lookAt(myPos, targetPos)
-            Character:PivotTo(lookCFrame * CFrame.Angles(math.rad(-90), 0, 0))
+            Character:PivotTo(lookCFrame * CFrame.Angles(math.rad(0), 0, 0))
             bodyPosition.Position = myPos
-            bodyGyro.CFrame = lookCFrame * CFrame.Angles(math.rad(-90), 0, 0)
+            bodyGyro.CFrame = lookCFrame * CFrame.Angles(math.rad(0), 0, 0)
         end
     until tick() - oldTime >= Settings.AutoFarm.Delay or not Character:FindFirstChild("HumanoidRootPart")
     
@@ -1111,3 +1111,4 @@ if RegisterQueue then RegisterQueue() end
 if queue_on_teleport then
     queue_on_teleport('local s,e=pcall(function() loadstring(readfile("DungeonQuest.lua"))() end) if not s then warn("Failed to reload DQ: "..e) end')
 end
+
