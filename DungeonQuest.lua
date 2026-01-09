@@ -158,7 +158,7 @@ function Functions:GetInventoryItems()
     return tbl
 end
 
-function Functions:DoSkills(RepeatCount)
+function Functions:DoSkills()
     if not Players.LocalPlayer.Backpack then return end
     for i, v in pairs(Players.LocalPlayer.Backpack:GetChildren()) do
         -- Skip Weapon (Basic Attack) to prevent auto-clicking
@@ -166,65 +166,73 @@ function Functions:DoSkills(RepeatCount)
             continue
         end
 
-        for k = 1, (RepeatCount or 1) do -- Loop 10 times
-            task.spawn(function()
-                if v:FindFirstChild("cooldown") and v.cooldown.Value and (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")) then
+        -- Optimized: Fire only once per call to prevent lag spikes
+        task.spawn(function()
+            if v:FindFirstChild("cooldown") and v.cooldown.Value then
+                -- Check if ability is actually ready (optional check could be added here if cooldown values were readable)
+                if (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")) then
                     (v:FindFirstChild("abilityEvent") or v:FindFirstChild("spellEvent")):FireServer()
-                elseif v:FindFirstChild("cooldown") and v.cooldown.Value then
-                    ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {["\t"] = v},[2] = RemoteCodes["Abilities"]})
+                else
+                     ReplicatedStorage:WaitForChild("dataRemoteEvent"):FireServer({[1] = {["\t"] = v},[2] = RemoteCodes["Abilities"]})
                 end
-            end)
-        end
+            end
+        end)
     end
 end
 
+-- Smooth Teleport Variables
+local TeleportConnection
+local TargetPositionForTP
+
 function Functions:Teleport(Cframe)
-    if not Character or not Character:FindFirstChild("HumanoidRootPart") then return end
-    LastplayerPos = Character:GetPivot().p
-    if WaitingToTp == true then return end
-    
-    local bodyPosition = Character.HumanoidRootPart:FindFirstChildOfClass("BodyPosition")
-    local bodyGyro = Character.HumanoidRootPart:FindFirstChildOfClass("BodyGyro")
-    
-    if not bodyGyro then
-        bodyGyro = Instance.new("BodyGyro")
-        bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
-        bodyGyro.CFrame = Character.HumanoidRootPart.CFrame
-        bodyGyro.D = 500
-        bodyGyro.Parent = Character.HumanoidRootPart
+    if not Character or not Character:FindFirstChild("HumanoidRootPart") then 
+        -- Cleanup if character missing
+        if TeleportConnection then TeleportConnection:Disconnect() TeleportConnection = nil end
+        return 
     end
     
-    if not bodyPosition then
-        bodyPosition = Instance.new("BodyPosition")
-        bodyPosition.MaxForce = Vector3.new(400000, 400000, 400000)
-        bodyPosition.Position = Cframe.Position
-        bodyPosition.D = 300
-        bodyPosition.Parent = Character.HumanoidRootPart
-        Character.HumanoidRootPart.Velocity = Vector3.zero
-    end
+    TargetPositionForTP = Cframe -- Update target continuously
     
-    local oldTime = tick()
-    WaitingToTp = true
-    Character.HumanoidRootPart.Anchored = false
-    
-    repeat task.wait()
-        if Character:FindFirstChild("HumanoidRootPart") and bodyPosition and bodyGyro then
-            local targetPos = Cframe.Position
-            local myPos = Cframe.p + Vector3.new(0, Settings.AutoFarm.Distance * 2, 0)
-            local lookCFrame = CFrame.lookAt(myPos, targetPos)
+    -- Start Loop only if not running
+    if not TeleportConnection then
+        -- Freeze character for smoother tp
+        if Character.HumanoidRootPart:FindFirstChild("BodyVelocity") then Character.HumanoidRootPart.BodyVelocity:Destroy() end
+        local bv = Instance.new("BodyVelocity")
+        bv.Name = "SmoothTP_BV"
+        bv.Velocity = Vector3.zero
+        bv.MaxForce = Vector3.new(9e9,9e9,9e9)
+        bv.Parent = Character.HumanoidRootPart
+        
+        -- Disable gravity/physics interference
+        Character.HumanoidRootPart.Anchored = false
+        
+        TeleportConnection = RunService.Heartbeat:Connect(function()
+            if not Character or not Character:FindFirstChild("HumanoidRootPart") or not TargetPositionForTP or not Settings.AutoFarm.Enabled then
+                if TeleportConnection then TeleportConnection:Disconnect() TeleportConnection = nil end
+                if Character and Character:FindFirstChild("HumanoidRootPart") and Character.HumanoidRootPart:FindFirstChild("SmoothTP_BV") then
+                    Character.HumanoidRootPart.SmoothTP_BV:Destroy()
+                end
+                return
+            end
+
+            -- High Performance TP Logic
+            local currentPos = Character.HumanoidRootPart.Position
+            local targetPos = TargetPositionForTP.Position
+            local offset = Vector3.new(0, Settings.AutoFarm.Distance * 2, 0)
+            local finalPos = targetPos + offset
+            
+            -- Instant CFrame update (Smoothest visually for exploits)
+            local lookCFrame = CFrame.lookAt(finalPos, targetPos)
             Character:PivotTo(lookCFrame * CFrame.Angles(math.rad(0), 0, 0))
-            bodyPosition.Position = myPos
-            bodyGyro.CFrame = lookCFrame * CFrame.Angles(math.rad(0), 0, 0)
-        end
-    until tick() - oldTime >= Settings.AutoFarm.Delay or not Character:FindFirstChild("HumanoidRootPart")
-    
-    WaitingToTp = false
-    if Character:FindFirstChild("HumanoidRootPart") then
-        Character.HumanoidRootPart.Anchored = true
-        if bodyPosition then bodyPosition:Destroy() end
-        if bodyGyro then bodyGyro:Destroy() end
+            
+            -- Lock velocity to prevent falling/flinging
+            if Character.HumanoidRootPart:FindFirstChild("SmoothTP_BV") then
+                Character.HumanoidRootPart.SmoothTP_BV.Velocity = Vector3.zero
+            end
+        end)
     end
 end
+
 
 function Functions:GetEnemys()
     if not workspace:FindFirstChild("dungeon") then 
@@ -1019,7 +1027,7 @@ task.spawn(function()
             if Character and Character:FindFirstChild("HumanoidRootPart") then
                 -- Skills
                 if Settings.AutoFarm.UseSkills == true then
-                    Functions:DoSkills(10) 
+                    Functions:DoSkills() 
                 end
                 
                 -- Gregg Coin
@@ -1029,9 +1037,12 @@ task.spawn(function()
                 end
                 
                 -- Teleport to Enemy
+                -- Teleport to Enemy
                 local Enemy = Functions:GetClosestEnemy()
                 if GreggCoin == false and Enemy ~= nil then
                     Functions:Teleport(Enemy:GetPivot())
+                else
+                    Functions:Teleport(nil)
                 end
             end
         end
@@ -1111,4 +1122,3 @@ if RegisterQueue then RegisterQueue() end
 if queue_on_teleport then
     queue_on_teleport('local s,e=pcall(function() loadstring(readfile("DungeonQuest.lua"))() end) if not s then warn("Failed to reload DQ: "..e) end')
 end
-
