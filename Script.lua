@@ -16,7 +16,7 @@ print("✅ Welcome: " .. AllowedUsers[player.UserId])
 
 local Games = {
     [110483372589393] = "https://raw.githubusercontent.com/Guyeiei/MinakoHub/refs/heads/main/AnimeClestialX",
-    [848145103] = "https://raw.githubusercontent.com/Guyeiei/MinakoHub/refs/heads/main/DungeonQuest.lua",
+    [2414851778] = "https://raw.githubusercontent.com/Guyeiei/MinakoHub/refs/heads/main/DungeonQuest.lua",
 }
 
 local currentPlaceId = tostring(game.PlaceId)
