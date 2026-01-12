@@ -19,12 +19,9 @@ local Games = {
     [2414851778] = "https://raw.githubusercontent.com/Guyeiei/MinakoHub/refs/heads/main/DungeonQuest.lua",
 }
 
-local currentPlaceId = tostring(game.PlaceId)
-local currentUniverseId = tostring(game.GameId)
-
-if scriptURL then
-    warn("🚀 Loading Script for Game/Place: " .. (Games[currentUniverseId] and "Universe" or "Place"))
-    loadstring(game:HttpGet(scriptURL, true))()
+local placeId = game.PlaceId
+if Games[placeId] then
+    loadstring(game:HttpGet(Games[placeId], true))()
 else
-    print("❌ ไม่พบสคริปต์สำหรับแมพนี้ | PlaceID: " .. currentPlaceId .. " | UniverseID: " .. currentUniverseId)
+    print("ไม่พบสคริปต์สำหรับแมพนี้ ID: " .. placeId)
 end
