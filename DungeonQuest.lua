@@ -58,6 +58,7 @@ local Settings = {
     Dungeon = {Enabled = false, EnabledBest = false, Name = "", Diffculty = "", Mode = "Normal", RaidEnabled = false, RaidName = "", Tier = "1"},
     AutoSell = {Enabled = false, Raritys = {}, ItemTypes = {}},
     Misc = {AutoRetry = false, GetGreggCoin = false, NameHide = false, RejoinIfStuck = false, RejoinStuckDelay = 120, RemovePulseVisuals = true, SkillDelay = 0.1}, 
+    Stats = {Enabled = false, Type = "Physical Power"}, -- Added Stats Settings
     DebugMode = false,
     UI = {Keybind = "RightControl"}
 }
@@ -680,6 +681,31 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
     })
 end
 
+-- 4. Stats Tab (New) --
+local TabStats = Window:Tab({Title = "Stats", Icon = "bar-chart-2"}) do
+    TabStats:Section({Title = "Auto Upgrade"})
+
+    TabStats:Toggle({
+        Title = "Auto Upgrade Stats",
+        Desc = "Automatically spends skill points",
+        Value = Settings.Stats.Enabled,
+        Callback = function(v)
+            Settings.Stats.Enabled = v
+            SaveSettings()
+        end
+    })
+
+    TabStats:Dropdown({
+        Title = "Stat Type",
+        Values = {"Physical Power", "Spell Power", "Stamina"},
+        Value = Settings.Stats.Type,
+        Callback = function(v)
+            Settings.Stats.Type = v
+            SaveSettings()
+        end
+    })
+end
+
 -- 3. Settings Tab --
 local TabSettings = Window:Tab({Title = "Settings", Icon = "settings"}) do
     TabSettings:Section({Title = "Configuration"})
@@ -1047,6 +1073,31 @@ task.spawn(function()
             end
         end
     end 
+end)
+
+-- Auto Stats Loop
+task.spawn(function()
+    while true do task.wait(1)
+        if Settings.Stats.Enabled == true then
+            pcall(function()
+                local playerStats = Players.LocalPlayer:FindFirstChild("playerStats")
+                local points = playerStats and playerStats:FindFirstChild("skillPoints")
+                
+                if points and points.Value > 0 then
+                    local statMap = {
+                        ["Physical Power"] = "physicalPower",
+                        ["Spell Power"] = "spellPower", 
+                        ["Stamina"] = "stamina"
+                    }
+                    
+                    local selectedStat = statMap[Settings.Stats.Type]
+                    if selectedStat then
+                        ReplicatedStorage.remotes.spendSkillPoint:FireServer(selectedStat, points.Value)
+                    end
+                end
+            end)
+        end
+    end
 end)
 
 -- Event Listeners --
