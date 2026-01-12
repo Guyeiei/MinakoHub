@@ -682,7 +682,7 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
 end
 
 -- 4. Stats Tab (New) --
-local TabStats = Window:Tab({Title = "Stats", Icon = "bar-chart-2"}) do
+local TabStats = Window:Tab({Title = "Stats", Icon = "chart-bar-big"}) do
     TabStats:Section({Title = "Auto Upgrade"})
 
     TabStats:Toggle({
@@ -1173,3 +1173,4 @@ if RegisterQueue then RegisterQueue() end
 if queue_on_teleport then
     queue_on_teleport('local s,e=pcall(function() loadstring(readfile("DungeonQuest.lua"))() end) if not s then warn("Failed to reload DQ: "..e) end')
 end
+
