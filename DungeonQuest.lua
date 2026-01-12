@@ -330,8 +330,8 @@ repeat task.wait() until Players.LocalPlayer and Players.LocalPlayer.PlayerGui
 
 local Window = WindUI:CreateWindow({
     Title = "Dungeon Quest!",
-    Icon = "door-open",
-    Author = "by Minako",
+    Icon = "rbxassetid://83718162072142",
+    Author = "MINAKOHUB",
 })
 
 Window:EditOpenButton({
@@ -381,13 +381,15 @@ task.spawn(function()
 end)
 
 -- 1. Auto Farm Tab --
-local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
+local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "atom", IconColor = Color3.fromHex("#CC0000")})
     
     TabAutoFarm:Section({Title = "Farm Settings"})
     
     TabAutoFarm:Toggle({
         Title = "Auto Farm",
         Desc = "Teleports to enemies and attacks",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.AutoFarm.Enabled,
         Callback = function(v) 
             Settings.AutoFarm.Enabled = v
@@ -398,6 +400,8 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
     TabAutoFarm:Toggle({
         Title = "Use Skills",
         Desc = "Automatically casts skills",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.AutoFarm.UseSkills,
         Callback = function(v) 
             Settings.AutoFarm.UseSkills = v
@@ -440,6 +444,8 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
     TabAutoFarm:Toggle({
         Title = "Auto Create Best",
         Desc = "Automatically creates the best dungeon for your level",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.Dungeon.EnabledBest,
         Callback = function(v)
             Settings.Dungeon.EnabledBest = v
@@ -450,6 +456,8 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
     TabAutoFarm:Toggle({
         Title = "Auto Create Selected",
         Desc = "Creates the dungeon selected below",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.Dungeon.Enabled,
         Callback = function(v)
             Settings.Dungeon.Enabled = v
@@ -493,6 +501,8 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
     TabAutoFarm:Toggle({
         Title = "Raid Farm",
         Desc = "Teleport to lobby after finish",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.AutoFarm.RaidFarm,
         Callback = function(v)
             Settings.AutoFarm.RaidFarm = v
@@ -503,6 +513,8 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
     TabAutoFarm:Toggle({
         Title = "Auto Create Raid",
         Desc = "Creates raid lobby",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.Dungeon.RaidEnabled,
         Callback = function(v)
             Settings.Dungeon.RaidEnabled = v
@@ -529,10 +541,10 @@ local TabAutoFarm = Window:Tab({Title = "AutoFarm", Icon = "activity"}) do
             SaveSettings()
         end
     })
-end
+
 
 -- 2. Misc Tab --
-local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
+local TabMisc = Window:Tab({Title = "Misc", Icon = "house", IconColor = Color3.fromHex("#FF99FF")})
     TabMisc:Section({Title = "Spam Settings"})
 
     TabMisc:Slider({
@@ -555,6 +567,8 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
     TabMisc:Toggle({
         Title = "Auto Retry",
         Desc = "Replays dungeon automatically",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.Misc.AutoRetry,
         Callback = function(v)
             Settings.Misc.AutoRetry = v
@@ -565,6 +579,8 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
     TabMisc:Toggle({
         Title = "Get Gregg Coin",
         Desc = "Collects coins",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.Misc.GetGreggCoin,
         Callback = function(v)
             Settings.Misc.GetGreggCoin = v
@@ -577,6 +593,8 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
     TabMisc:Toggle({
         Title = "Enabled",
         Desc = "Sells items automatically",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.AutoSell.Enabled,
         Callback = function(v)
             Settings.AutoSell.Enabled = v
@@ -611,6 +629,8 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
     TabMisc:Toggle({
         Title = "Hide Name",
         Desc = "Masks your name locally",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.Misc.NameHide,
         Callback = function(v)
             Settings.Misc.NameHide = v
@@ -639,6 +659,8 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
     TabMisc:Toggle({
         Title = "Rejoin If Stuck",
         Desc = "Rejoins lobby if stuck for a while",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.Misc.RejoinIfStuck,
         Callback = function(v)
             Settings.Misc.RejoinIfStuck = v
@@ -665,6 +687,8 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
     TabMisc:Toggle({
         Title = "Remove Pulse Visuals",
         Desc = "Boosts FPS by removing visual effects",
+        Icon = "check",
+        Type = "Checkbox",
         Value = Settings.Misc.RemovePulseVisuals,
         Callback = function(v)
             Settings.Misc.RemovePulseVisuals = v
@@ -678,14 +702,15 @@ local TabMisc = Window:Tab({Title = "Misc", Icon = "house"}) do
             end
         end
     })
-end
+
 
 -- 3. Settings Tab --
-local TabSettings = Window:Tab({Title = "Settings", Icon = "settings"}) do
+local TabSettings = Window:Tab({Title = "Settings", Icon = "settings", IconColor = Color3.fromHex("#00FFFF")})
     TabSettings:Section({Title = "Configuration"})
 
     TabSettings:Button({
         Title = "Save Settings",
+        Icon = "mouse",
         Callback = function()
             SaveSettings()
             WindUI:Notify({Title = "Saved", Content = "Settings saved successfully", Duration = 3})
@@ -701,7 +726,7 @@ local TabSettings = Window:Tab({Title = "Settings", Icon = "settings"}) do
             SaveSettings() -- Just save, generic listener handles toggle
         end
     })
-end
+
 
 -- Default Keybind Init --
 local isToggled = true
