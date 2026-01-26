@@ -1,0 +1,71 @@
+-- Map Function Scanner
+-- This script scans the Workspace and ReplicatedStorage for RemoteEvents and RemoteFunctions
+-- It helps identify interactable endpoints for your scripts.
+ 
+local Services = {
+    game:GetService("Workspace"),
+    game:GetService("ReplicatedStorage")
+}
+ 
+local outputData = "--- Map Scan Results ---\n"
+ 
+local function log(text)
+    print(text) -- Still print to console
+    outputData = outputData .. text .. "\n"
+end
+ 
+local function getFullName(instance)
+    local p = instance
+    local path = {}
+    while p and p ~= game do
+        table.insert(path, 1, p.Name)
+        p = p.Parent
+    end
+    return table.concat(path, ".")
+end
+ 
+local function scan(instance, depth)
+    -- Safety break for deep recursion to avoid crashing
+    if depth > 100 then return end
+    
+    local success, children = pcall(function() return instance:GetChildren() end)
+    if not success then return end
+ 
+    for _, child in ipairs(children) do
+        -- Check for Remote objects (Functions/Events) which are often used for game interactions
+        if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") or child:IsA("BindableEvent") or child:IsA("BindableFunction") then
+            -- Log to buffer
+            log("[FOUND " .. child.ClassName .. "]: " .. getFullName(child))
+        end
+        
+        -- Also check for specific names that might be useful in dungeon games
+        local nameLower = child.Name:lower()
+        if nameLower:find("attack") or nameLower:find("skill") or nameLower:find("dungeon") or nameLower:find("mob") then
+             log("[INTERESTING OBJECT]: " .. getFullName(child) .. " (" .. child.ClassName .. ")")
+        end
+ 
+        -- Recurse
+        scan(child, depth + 1)
+    end
+end
+ 
+print("------------------------------------------------")
+print("STARTING MAP FUNCTION SCAN")
+print("------------------------------------------------")
+ 
+for _, service in ipairs(Services) do
+    log("Scanning " .. service.Name .. "...")
+    scan(service, 0)
+end
+ 
+print("------------------------------------------------")
+print("SCAN COMPLETE")
+print("------------------------------------------------")
+ 
+-- Try to save to file (Standard Executor function)
+pcall(function()
+    writefile("MapScan_Results.txt", outputData)
+    print("SAVED RESULTS TO FILE: MapScan_Results.txt")
+    print("Check your Executor's Workspace folder!")
+end)
+ 
